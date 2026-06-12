@@ -22,7 +22,7 @@
 | **Email** | emnahr109@gmail.com |
 | **Établissement** | ESSTHS — Hammam Sousse |
 | **Niveau** | Licence Génie Logiciel — 2ème année |
-| **Superviseur** | AiKup Tech SUARL |
+| **Superviseur** | Ikram Ajlani CTO AiKup Tech |
 | **Branche de travail** | `learning/week1-python` |
 | **Due date** | Fin Semaine 1 |
 
