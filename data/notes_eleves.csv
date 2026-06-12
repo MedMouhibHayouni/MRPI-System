@@ -1,0 +1,61 @@
+eleve_id,nom,prenom,classe,matiere,note,coefficient,trimestre
+E001,Ben Ali,Sarra,3ème A,Mathématiques,14.5,4,T1
+E001,Ben Ali,Sarra,3ème A,Français,12.0,3,T1
+E001,Ben Ali,Sarra,3ème A,Sciences,16.0,3,T1
+E001,Ben Ali,Sarra,3ème A,Histoire-Géo,11.5,2,T1
+E001,Ben Ali,Sarra,3ème A,Anglais,13.0,2,T1
+E001,Ben Ali,Sarra,3ème A,Informatique,18.0,2,T1
+E002,Trabelsi,Mohamed,3ème A,Mathématiques,9.0,4,T1
+E002,Trabelsi,Mohamed,3ème A,Français,15.5,3,T1
+E002,Trabelsi,Mohamed,3ème A,Sciences,11.0,3,T1
+E002,Trabelsi,Mohamed,3ème A,Histoire-Géo,13.0,2,T1
+E002,Trabelsi,Mohamed,3ème A,Anglais,10.5,2,T1
+E002,Trabelsi,Mohamed,3ème A,Informatique,14.0,2,T1
+E003,Khlifi,Amira,3ème B,Mathématiques,17.5,4,T1
+E003,Khlifi,Amira,3ème B,Français,16.0,3,T1
+E003,Khlifi,Amira,3ème B,Sciences,15.0,3,T1
+E003,Khlifi,Amira,3ème B,Histoire-Géo,14.5,2,T1
+E003,Khlifi,Amira,3ème B,Anglais,18.0,2,T1
+E003,Khlifi,Amira,3ème B,Informatique,19.0,2,T1
+E004,Mansour,Khalil,3ème B,Mathématiques,7.5,4,T1
+E004,Mansour,Khalil,3ème B,Français,8.0,3,T1
+E004,Mansour,Khalil,3ème B,Sciences,9.5,3,T1
+E004,Mansour,Khalil,3ème B,Histoire-Géo,10.0,2,T1
+E004,Mansour,Khalil,3ème B,Anglais,7.0,2,T1
+E004,Mansour,Khalil,3ème B,Informatique,11.0,2,T1
+E005,Ayari,Nour,3ème A,Mathématiques,13.0,4,T1
+E005,Ayari,Nour,3ème A,Français,14.5,3,T1
+E005,Ayari,Nour,3ème A,Sciences,12.5,3,T1
+E005,Ayari,Nour,3ème A,Histoire-Géo,15.0,2,T1
+E005,Ayari,Nour,3ème A,Anglais,16.5,2,T1
+E005,Ayari,Nour,3ème A,Informatique,15.0,2,T1
+E006,Hamdi,Yassine,3ème B,Mathématiques,11.0,4,T1
+E006,Hamdi,Yassine,3ème B,Français,9.5,3,T1
+E006,Hamdi,Yassine,3ème B,Sciences,13.0,3,T1
+E006,Hamdi,Yassine,3ème B,Histoire-Géo,12.0,2,T1
+E006,Hamdi,Yassine,3ème B,Anglais,14.0,2,T1
+E006,Hamdi,Yassine,3ème B,Informatique,16.5,2,T1
+E007,Sassi,Ines,3ème A,Mathématiques,18.0,4,T1
+E007,Sassi,Ines,3ème A,Français,17.0,3,T1
+E007,Sassi,Ines,3ème A,Sciences,16.5,3,T1
+E007,Sassi,Ines,3ème A,Histoire-Géo,15.5,2,T1
+E007,Sassi,Ines,3ème A,Anglais,19.0,2,T1
+E007,Sassi,Ines,3ème A,Informatique,20.0,2,T1
+E008,Gharbi,Omar,3ème B,Mathématiques,6.0,4,T1
+E008,Gharbi,Omar,3ème B,Français,11.0,3,T1
+E008,Gharbi,Omar,3ème B,Sciences,8.5,3,T1
+E008,Gharbi,Omar,3ème B,Histoire-Géo,9.0,2,T1
+E008,Gharbi,Omar,3ème B,Anglais,10.0,2,T1
+E008,Gharbi,Omar,3ème B,Informatique,12.5,2,T1
+E009,Boughanmi,Lina,3ème A,Mathématiques,15.0,4,T1
+E009,Boughanmi,Lina,3ème A,Français,13.5,3,T1
+E009,Boughanmi,Lina,3ème A,Sciences,14.0,3,T1
+E009,Boughanmi,Lina,3ème A,Histoire-Géo,16.0,2,T1
+E009,Boughanmi,Lina,3ème A,Anglais,12.5,2,T1
+E009,Boughanmi,Lina,3ème A,Informatique,17.0,2,T1
+E010,Rezgui,Adam,3ème B,Mathématiques,10.5,4,T1
+E010,Rezgui,Adam,3ème B,Français,12.0,3,T1
+E010,Rezgui,Adam,3ème B,Sciences,11.5,3,T1
+E010,Rezgui,Adam,3ème B,Histoire-Géo,13.5,2,T1
+E010,Rezgui,Adam,3ème B,Anglais,9.0,2,T1
+E010,Rezgui,Adam,3ème B,Informatique,13.0,2,T1
