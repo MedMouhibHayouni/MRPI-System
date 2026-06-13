@@ -1,0 +1,11 @@
+eleve_id,nom,prenom,classe,moyenne,admis,mention
+E007,Sassi,Ines,3ème A,17.59375,Oui,Très Bien
+E003,Khlifi,Amira,3ème B,16.625,Oui,Très Bien
+E009,Boughanmi,Lina,3ème A,14.59375,Oui,Bien
+E001,Ben Ali,Sarra,3ème A,14.1875,Oui,Bien
+E005,Ayari,Nour,3ème A,14.125,Oui,Bien
+E006,Hamdi,Yassine,3ème B,12.28125,Oui,Assez Bien
+E002,Trabelsi,Mohamed,3ème A,11.90625,Oui,passable
+E010,Rezgui,Adam,3ème B,11.46875,Oui,passable
+E008,Gharbi,Omar,3ème B,9.09375,Non,non attribué
+E004,Mansour,Khalil,3ème B,8.65625,Non,non attribué

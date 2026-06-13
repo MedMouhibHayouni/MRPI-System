@@ -80,3 +80,24 @@ conditions = [
 ]
 choix = ["Très Bien", "Bien", "Assez Bien", "passable", "non attribué"]
 df_moyenne["mention"] = np.select(conditions, choix, default="non attribué")
+
+
+######################################
+# S1-partie-6
+# classement_finale.csv
+df_moyenne[
+    ["eleve_id", "nom", "prenom", "classe", "moyenne", "admis", "mention"]
+].drop_duplicates().sort_values("moyenne", ascending=False).to_csv(
+    "output/classement_final.csv", index=False
+)
+
+# eleves_en_difficulte.csv
+df_moyenne[df_moyenne["admis"] == "Non"][
+    ["eleve_id", "nom", "prenom", "classe", "moyenne"]
+].drop_duplicates().to_csv("output/eleves_en_difficulte.csv", index=False)
+
+
+# moyennes_par_matiere.json
+df.groupby("matiere")["note"].mean().to_json(
+    "output/moyennes_par_matiere.json", force_ascii=False
+)
