@@ -1,5 +1,5 @@
 # S1-partie-1
-
+import numpy as np
 import pandas as pd
 
 df = pd.read_csv("data/notes_eleves.csv")
@@ -44,3 +44,15 @@ print(df.groupby("classe")["note"].mean())
 # Note max et min par élève
 print("\nnote max et min par élève:")
 print(df.groupby("eleve_id").agg(note_max=("note", "max"), note_min=("note", "min")))
+
+
+# S1-partie-4
+print("moyenne generale par etudiant")
+
+
+def moyenne_ponderee(group):
+    return np.dot(group["note"], group["coefficient"]) / np.sum(group["coefficient"])
+
+
+resultats = df.groupby("eleve_id").apply(moyenne_ponderee)
+print(resultats)
