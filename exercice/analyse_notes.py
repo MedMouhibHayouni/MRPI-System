@@ -31,6 +31,7 @@ print("\nfiltrage par matières :")
 print(df[df["matiere"].isin(["Anglais", "Français", "Informatique"])])
 
 
+#############################################
 # S1-partie-3
 
 # Moyenne par matière triée
@@ -46,6 +47,7 @@ print("\nnote max et min par élève:")
 print(df.groupby("eleve_id").agg(note_max=("note", "max"), note_min=("note", "min")))
 
 
+#############################################
 # S1-partie-4
 print("moyenne generale par etudiant")
 
@@ -54,5 +56,27 @@ def moyenne_ponderee(group):
     return np.dot(group["note"], group["coefficient"]) / np.sum(group["coefficient"])
 
 
-resultats = df.groupby("eleve_id").apply(moyenne_ponderee)
-print(resultats)
+moy_etudiant = df.groupby("eleve_id").apply(moyenne_ponderee)
+print(moy_etudiant)
+
+##############################################
+# S1-partie-5
+
+moy_etudiant = moy_etudiant.reset_index()
+moy_etudiant.columns = ["eleve_id", "moyenne"]
+df_moyenne = pd.merge(df, moy_etudiant, on="eleve_id")
+
+# ajout de la colonne admis avec np.where
+df_moyenne["admis"] = np.where(df_moyenne["moyenne"] >= 10, "Oui", "Non")
+
+
+# ajout de la colonne mention avec np.select
+conditions = [
+    df_moyenne["moyenne"] >= 16,
+    df_moyenne["moyenne"] >= 14,
+    df_moyenne["moyenne"] >= 12,
+    df_moyenne["moyenne"] >= 10,
+    df_moyenne["moyenne"] < 10,
+]
+choix = ["Très Bien", "Bien", "Assez Bien", "passable", "non attribué"]
+df_moyenne["mention"] = np.select(conditions, choix, default="non attribué")
