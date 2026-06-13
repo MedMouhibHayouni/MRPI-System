@@ -31,5 +31,16 @@ print("\nfiltrage par matières :")
 print(df[df["matiere"].isin(["Anglais", "Français", "Informatique"])])
 
 
-
 # S1-partie-3
+
+# Moyenne par matière triée
+print("moyenne par matière (ordre décroissant):")
+print(df.groupby("matiere")["note"].mean().sort_values(ascending=False))
+
+# Moyenne par classe
+print("\nmoyenne par classe:")
+print(df.groupby("classe")["note"].mean())
+
+# Note max et min par élève
+print("\nnote max et min par élève:")
+print(df.groupby("eleve_id").agg(note_max=("note", "max"), note_min=("note", "min")))
