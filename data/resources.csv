@@ -1,0 +1,51 @@
+resource_id,title,type,subject,concept,difficulty,estimated_time_min,prerequisites
+RES-001,Introduction aux fractions,micro_lesson,Mathematiques,fractions,beginner,15,
+RES-002,Exercices fractions niveau 1,exercise,Mathematiques,fractions,beginner,20,RES-001
+RES-003,Fractions avancées - vidéo,video,Mathematiques,fractions,intermediate,12,RES-001
+RES-004,Additions et soustractions,micro_lesson,Mathematiques,arithmetique,beginner,10,
+RES-005,Exercices arithmétique niveau 2,exercise,Mathematiques,arithmetique,intermediate,25,RES-004
+RES-006,Multiplications et divisions,micro_lesson,Mathematiques,arithmetique,beginner,10,
+RES-007,Introduction aux équations 1er degré,micro_lesson,Mathematiques,algebre,intermediate,20,RES-004
+RES-008,Exercices équations 1er degré,exercise,Mathematiques,algebre,intermediate,30,RES-007
+RES-009,Équations 2ème degré - vidéo,video,Mathematiques,algebre,advanced,18,RES-007
+RES-010,Exercices équations 2ème degré,exercise,Mathematiques,algebre,advanced,35,RES-009
+RES-011,Introduction à la géométrie,micro_lesson,Mathematiques,geometrie,beginner,15,
+RES-012,Aires et périmètres,micro_lesson,Mathematiques,geometrie,beginner,20,RES-011
+RES-013,Exercices géométrie basique,exercise,Mathematiques,geometrie,beginner,20,RES-011
+RES-014,Géométrie dans l'espace - vidéo,video,Mathematiques,geometrie,intermediate,22,RES-012
+RES-015,Exercices géométrie avancée,exercise,Mathematiques,geometrie,advanced,40,RES-014
+RES-016,Introduction aux probabilités,micro_lesson,Mathematiques,probabilites,intermediate,18,RES-004
+RES-017,Exercices probabilités simples,exercise,Mathematiques,probabilites,intermediate,25,RES-016
+RES-018,Probabilités conditionnelles - vidéo,video,Mathematiques,probabilites,advanced,20,RES-016
+RES-019,Exercices probabilités avancées,exercise,Mathematiques,probabilites,advanced,35,RES-018
+RES-020,Introduction aux statistiques,micro_lesson,Mathematiques,statistiques,intermediate,15,RES-004
+RES-021,Moyenne, médiane, mode,exercise,Mathematiques,statistiques,intermediate,20,RES-020
+RES-022,Statistiques descriptives - vidéo,video,Mathematiques,statistiques,advanced,25,RES-020
+RES-023,Introduction aux fonctions,micro_lesson,Mathematiques,fonctions,intermediate,20,RES-007
+RES-024,Fonctions linéaires et affines,exercise,Mathematiques,fonctions,intermediate,30,RES-023
+RES-025,Fonctions et graphes - vidéo,video,Mathematiques,fonctions,intermediate,18,RES-023
+RES-026,Introduction aux dérivées,micro_lesson,Mathematiques,derivees,advanced,25,RES-023
+RES-027,Exercices dérivées simples,exercise,Mathematiques,derivees,advanced,40,RES-026
+RES-028,Dérivées composées - vidéo,video,Mathematiques,derivees,advanced,22,RES-026
+RES-029,Exercices dérivées partielles,exercise,Mathematiques,derivees partielles,advanced,45,RES-027
+RES-030,Introduction aux intégrales,micro_lesson,Mathematiques,integration,advanced,25,RES-026
+RES-031,Les forces et le mouvement,micro_lesson,Physique,mecanique,beginner,15,
+RES-032,Exercices cinématique,exercise,Physique,mecanique,beginner,20,RES-031
+RES-033,Lois de Newton - vidéo,video,Physique,mecanique,intermediate,18,RES-031
+RES-034,Exercices dynamique,exercise,Physique,mecanique,intermediate,30,RES-033
+RES-035,Introduction à l'électricité,micro_lesson,Physique,electricite,beginner,15,
+RES-036,Circuits électriques - vidéo,video,Physique,electricite,intermediate,20,RES-035
+RES-037,Exercices circuits série/parallèle,exercise,Physique,electricite,intermediate,25,RES-036
+RES-038,Introduction à l'optique,micro_lesson,Physique,optique,intermediate,18,
+RES-039,Réflexion et réfraction - vidéo,video,Physique,optique,intermediate,15,RES-038
+RES-040,Exercices optique géométrique,exercise,Physique,optique,advanced,30,RES-039
+RES-041,Atomes et molécules,micro_lesson,Chimie,structure atomique,beginner,15,
+RES-042,Tableau périodique - vidéo,video,Chimie,structure atomique,beginner,12,RES-041
+RES-043,Exercices liaisons chimiques,exercise,Chimie,liaisons,intermediate,25,RES-041
+RES-044,Réactions chimiques - micro-leçon,micro_lesson,Chimie,reactions,intermediate,20,RES-041
+RES-045,Exercices équilibrage réactions,exercise,Chimie,reactions,advanced,35,RES-044
+RES-046,Les temps du passé,micro_lesson,Francais,grammaire,beginner,12,
+RES-047,Exercices conjugaison passé composé,exercise,Francais,grammaire,beginner,20,RES-046
+RES-048,Subjonctif et conditionnel - vidéo,video,Francais,grammaire,intermediate,18,RES-046
+RES-049,Techniques de lecture active,micro_lesson,Francais,comprehension,beginner,10,
+RES-050,Exercices compréhension de texte,exercise,Francais,comprehension,intermediate,25,RES-049
