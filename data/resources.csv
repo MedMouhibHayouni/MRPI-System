@@ -19,7 +19,7 @@ RES-017,Exercices probabilités simples,exercise,Mathematiques,probabilites,inte
 RES-018,Probabilités conditionnelles - vidéo,video,Mathematiques,probabilites,advanced,20,RES-016
 RES-019,Exercices probabilités avancées,exercise,Mathematiques,probabilites,advanced,35,RES-018
 RES-020,Introduction aux statistiques,micro_lesson,Mathematiques,statistiques,intermediate,15,RES-004
-RES-021,Moyenne, médiane, mode,exercise,Mathematiques,statistiques,intermediate,20,RES-020
+RES-021,Moyenne médiane mode,exercise,Mathematiques,statistiques,intermediate,20,RES-020
 RES-022,Statistiques descriptives - vidéo,video,Mathematiques,statistiques,advanced,25,RES-020
 RES-023,Introduction aux fonctions,micro_lesson,Mathematiques,fonctions,intermediate,20,RES-007
 RES-024,Fonctions linéaires et affines,exercise,Mathematiques,fonctions,intermediate,30,RES-023

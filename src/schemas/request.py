@@ -10,6 +10,7 @@ class AcademicLevel(str, Enum):
 
 
 class LearningStyle(str, Enum):
+    textual= "textual"
     visual = "visual"
     auditory = "auditory"
     kinesthetic = "kinesthetic"

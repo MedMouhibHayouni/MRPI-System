@@ -1,0 +1,42 @@
+[
+  {
+    "student_id": "STU-2026-0001",
+    "recommendations": [
+      {
+        "resource_id": "RES-001",
+        "title": "Introduction aux fractions",
+        "concept": "fractions",
+        "type": "micro_lesson",
+        "difficulty": "beginner",
+        "cbf_score": 0.75,
+        "fallback_used": true
+      }
+    ]
+  },
+  {
+    "student_id": "STU-2026-0002",
+    "recommendations": []
+  },
+  {
+    "student_id": "STU-2026-0003",
+    "recommendations": []
+  },
+  {
+    "student_id": "STU-2026-0004",
+    "recommendations": []
+  },
+  {
+    "student_id": "STU-2026-0005",
+    "recommendations": [
+      {
+        "resource_id": "RES-006",
+        "title": "Multiplications et divisions",
+        "concept": "arithmetique",
+        "type": "micro_lesson",
+        "difficulty": "beginner",
+        "cbf_score": 0.75,
+        "fallback_used": true
+      }
+    ]
+  }
+]
