@@ -1,21 +1,42 @@
 student_id,subject,weak_concept,academic_level,learning_style,past_interactions
-STU-2026-0001,Mathematiques,fractions,beginner,visual,
-STU-2026-0002,Mathematiques,algebre,intermediate,kinesthetic,"['RES-007','RES-008']"
-STU-2026-0003,Mathematiques,derivees partielles,advanced,textual,"['RES-026','RES-027','RES-029']"
-STU-2026-0004,Physique,mecanique,beginner,visual,"['RES-031','RES-032']"
-STU-2026-0005,Mathematiques,arithmetique,beginner,kinesthetic,"['RES-001','RES-004']"
-STU-2026-0006,Chimie,reactions,intermediate,visual,"['RES-041','RES-044']"
-STU-2026-0007,Francais,grammaire,beginner,textual,"['RES-046','RES-047']"
-STU-2026-0008,Mathematiques,derivees,advanced,visual,"['RES-026','RES-027']"
-STU-2026-0009,Mathematiques,statistiques,intermediate,kinesthetic,"['RES-020','RES-021']"
-STU-2026-0010,Physique,electricite,intermediate,visual,"['RES-035','RES-036']"
-STU-2026-0011,Mathematiques,fractions,beginner,auditory,"['RES-001','RES-003']"
-STU-2026-0012,Mathematiques,derivees partielles,advanced,kinesthetic,"['RES-026','RES-027','RES-029']"
-STU-2026-0013,Physique,optique,intermediate,visual,"['RES-038','RES-039']"
-STU-2026-0014,Chimie,liaisons,intermediate,auditory,"['RES-041','RES-043']"
-STU-2026-0015,Francais,comprehension,beginner,textual,"['RES-049','RES-050']"
-STU-2026-0016,Mathematiques,fonctions,intermediate,kinesthetic,"['RES-007','RES-023']"
-STU-2026-0017,Mathematiques,probabilites,intermediate,auditory,"['RES-016','RES-018']"
-STU-2026-0018,Physique,mecanique,advanced,visual,"['RES-031','RES-034']"
-STU-2026-0019,Mathematiques,geometrie,beginner,kinesthetic,"['RES-011','RES-012']"
-STU-2026-0020,Mathematiques,algebre,intermediate,textual,"['RES-007','RES-011']"
+STU-2026-0001,Mathematiques,fractions,beginner,visual,[RES-024, RES-064, RES-007, RES-010, RES-027, RES-017, RES-075, RES-100, RES-087, RES-001]
+STU-2026-0002,Mathematiques,algebre,intermediate,kinesthetic,[RES-007, RES-008, RES-097, RES-079, RES-064, RES-093, RES-049, RES-006, RES-067]
+STU-2026-0003,Mathematiques,derivees partielles,advanced,textual,[RES-026, RES-027, RES-029, RES-048, RES-004, RES-015, RES-053, RES-088, RES-025, RES-012, RES-075, RES-063, RES-040, RES-071, RES-059, RES-085, RES-079, RES-067]
+STU-2026-0004,Physique,mecanique,beginner,visual,[RES-031, RES-032, RES-018, RES-013, RES-078, RES-023, RES-061, RES-037, RES-064, RES-059, RES-036, RES-090, RES-024, RES-004, RES-082, RES-083]
+STU-2026-0005,Mathematiques,arithmetique,beginner,kinesthetic,[RES-001, RES-004, RES-094, RES-076, RES-045, RES-060, RES-035, RES-091, RES-070, RES-088, RES-034, RES-038, RES-092, RES-040, RES-021, RES-079]
+STU-2026-0006,Chimie,reactions,intermediate,visual,[RES-041, RES-044, RES-059, RES-078, RES-055, RES-069, RES-011, RES-021, RES-072, RES-053, RES-060, RES-082, RES-067]
+STU-2026-0007,Francais,grammaire,beginner,textual,[RES-046, RES-047, RES-039, RES-093, RES-056, RES-070, RES-096, RES-022, RES-057, RES-007, RES-060, RES-038]
+STU-2026-0008,Mathematiques,derivees,advanced,visual,[RES-026, RES-027, RES-097, RES-008, RES-037, RES-060, RES-078, RES-085, RES-057, RES-062, RES-080, RES-028, RES-031, RES-047, RES-035, RES-064, RES-002, RES-087, RES-081, RES-007, RES-061, RES-056, RES-079, RES-014, RES-021, RES-054]
+STU-2026-0009,Mathematiques,statistiques,intermediate,kinesthetic,[RES-020, RES-021, RES-044, RES-066, RES-043, RES-096, RES-041, RES-059, RES-018, RES-011, RES-082, RES-006]
+STU-2026-0010,Physique,electricite,intermediate,visual,[RES-035, RES-036, RES-031, RES-053, RES-007, RES-061, RES-068, RES-063, RES-056, RES-023, RES-043, RES-083, RES-059, RES-003, RES-089, RES-005, RES-088, RES-072, RES-055, RES-013, RES-051, RES-002, RES-040]
+STU-2026-0011,Mathematiques,fractions,beginner,auditory,[RES-001, RES-003, RES-033, RES-064, RES-073, RES-090, RES-043, RES-075, RES-083, RES-017, RES-066]
+STU-2026-0012,Mathematiques,derivees partielles,advanced,kinesthetic,[RES-026, RES-027, RES-029, RES-092, RES-066, RES-009, RES-065, RES-081, RES-015, RES-028, RES-041]
+STU-2026-0013,Physique,optique,intermediate,visual,[RES-038, RES-039, RES-078, RES-056, RES-063, RES-030, RES-032, RES-034, RES-088, RES-064, RES-020, RES-023]
+STU-2026-0014,Chimie,liaisons,intermediate,auditory,[RES-041, RES-043, RES-010, RES-083, RES-018, RES-065, RES-093, RES-001, RES-089, RES-004, RES-034, RES-081, RES-050, RES-009, RES-028, RES-025]
+STU-2026-0015,Francais,comprehension,beginner,textual,[RES-049, RES-050, RES-001, RES-054, RES-098, RES-028, RES-051, RES-095, RES-036, RES-022, RES-019, RES-012, RES-058, RES-009, RES-072, RES-066, RES-006]
+STU-2026-0016,Mathematiques,fonctions,intermediate,kinesthetic,[RES-007, RES-023, RES-063, RES-034, RES-003, RES-090, RES-047, RES-032, RES-084, RES-029, RES-049, RES-038, RES-036, RES-089, RES-012, RES-052, RES-069, RES-074, RES-058, RES-065, RES-011, RES-085, RES-004, RES-078, RES-009, RES-099]
+STU-2026-0017,Mathematiques,probabilites,intermediate,auditory,[RES-016, RES-018, RES-050, RES-011, RES-088, RES-095, RES-073, RES-028, RES-042, RES-023]
+STU-2026-0018,Physique,mecanique,advanced,visual,[RES-031, RES-034, RES-033, RES-004, RES-076, RES-040, RES-083, RES-014, RES-041, RES-052, RES-062, RES-025, RES-075, RES-058, RES-032, RES-011, RES-071, RES-044, RES-063, RES-077, RES-043, RES-053, RES-054, RES-084, RES-021, RES-066, RES-092]
+STU-2026-0019,Mathematiques,geometrie,beginner,kinesthetic,[RES-011, RES-012, RES-036, RES-092, RES-071, RES-042, RES-007, RES-068, RES-024, RES-052, RES-075, RES-050, RES-090, RES-088, RES-070, RES-100]
+STU-2026-0020,Mathematiques,algebre,intermediate,textual,[RES-007, RES-011, RES-030, RES-005, RES-039, RES-040, RES-037, RES-058, RES-054, RES-008, RES-024, RES-028, RES-032, RES-095, RES-076, RES-016, RES-059, RES-060, RES-080, RES-022, RES-074, RES-055, RES-019, RES-087, RES-086, RES-092, RES-036]
+STU-2026-0021,Mathematiques,fractions,beginner,visual,[RES-066, RES-092, RES-031, RES-033, RES-024, RES-080, RES-015, RES-063, RES-035, RES-004, RES-019, RES-061, RES-073, RES-078, RES-071, RES-085, RES-038, RES-043, RES-052, RES-082, RES-022]
+STU-2026-0022,Mathematiques,algebre,advanced,kinesthetic,[RES-021, RES-018, RES-034, RES-026, RES-049, RES-072, RES-004, RES-036, RES-069, RES-033, RES-011, RES-028, RES-090, RES-064, RES-045]
+STU-2026-0023,Mathematiques,geometrie,beginner,auditory,[RES-095, RES-027, RES-098, RES-017, RES-069, RES-092, RES-078, RES-003, RES-048, RES-001, RES-010, RES-065, RES-014, RES-079, RES-042, RES-072, RES-093, RES-029, RES-097, RES-044, RES-013, RES-019]
+STU-2026-0024,Physique,mecanique,intermediate,textual,[RES-063, RES-048, RES-069, RES-030, RES-017, RES-035, RES-040, RES-066, RES-051, RES-052, RES-055, RES-047, RES-057, RES-095, RES-097, RES-046]
+STU-2026-0025,Mathematiques,fractions,intermediate,visual,[RES-027, RES-022, RES-074, RES-064, RES-017, RES-062, RES-023, RES-100]
+STU-2026-0026,Mathematiques,derivees partielles,advanced,visual,[RES-032, RES-009, RES-071, RES-060, RES-058, RES-028, RES-035, RES-087, RES-055, RES-001, RES-062, RES-021, RES-066]
+STU-2026-0027,Physique,optique,beginner,kinesthetic,[RES-074, RES-030, RES-047, RES-081, RES-055, RES-058, RES-044, RES-059, RES-056, RES-053, RES-051, RES-065, RES-042, RES-087, RES-073, RES-038, RES-024, RES-048, RES-052, RES-012, RES-028]
+STU-2026-0028,Chimie,liaisons,advanced,textual,[RES-034, RES-092, RES-073, RES-081, RES-036, RES-002, RES-056, RES-024, RES-031, RES-097, RES-060, RES-021, RES-065, RES-100, RES-010, RES-051, RES-020, RES-035]
+STU-2026-0029,Francais,comprehension,advanced,auditory,[RES-082, RES-067, RES-030, RES-057, RES-094, RES-003, RES-085, RES-097, RES-048, RES-053, RES-098, RES-047, RES-054, RES-086, RES-045, RES-084]
+STU-2026-0030,Mathematiques,integration,advanced,kinesthetic,[RES-017, RES-065, RES-004, RES-092, RES-018, RES-073, RES-080, RES-082, RES-049, RES-055, RES-030, RES-003]
+STU-2026-0032,Mathematiques,integration,advanced,kinesthetic,[]
+STU-2026-0033,Mathematiques,fractions,intermediate,visual,[]
+STU-2026-0034,Mathematiques,geometrie,intermediate,visual,[RES-068, RES-089, RES-073, RES-095, RES-016, RES-009, RES-015, RES-036, RES-090, RES-033, RES-064, RES-007, RES-093, RES-018, RES-002, RES-008]
+STU-2026-0035,Physique,mecanique,beginner,kinesthetic,[RES-062, RES-008, RES-082, RES-038, RES-040, RES-094, RES-037, RES-078, RES-033, RES-083, RES-034, RES-098, RES-099, RES-039, RES-029, RES-080]
+STU-2026-0036,Chimie,structure atomique,beginner,textual,[RES-035, RES-043, RES-099, RES-045, RES-087, RES-014]
+STU-2026-0037,Mathematiques,probabilites,advanced,visual,[RES-096, RES-063, RES-090, RES-080, RES-094, RES-009, RES-070, RES-054, RES-017, RES-056, RES-089, RES-011, RES-051, RES-081]
+STU-2026-0038,Francais,grammaire,intermediate,auditory,[RES-024, RES-049, RES-097, RES-092, RES-094, RES-050, RES-090, RES-056, RES-075, RES-091, RES-047, RES-093]
+STU-2026-0039,Mathematiques,algebre,beginner,kinesthetic,[RES-092, RES-075, RES-006, RES-059, RES-038, RES-087, RES-053, RES-012, RES-074, RES-005, RES-004, RES-093, RES-011, RES-083]
+STU-2026-0040,Physique,electricite,advanced,textual,[RES-039, RES-082, RES-007, RES-035, RES-078, RES-098, RES-053, RES-043, RES-037]
+STU-2026-0041,Mathematiques,fonctions,advanced,visual,[RES-023, RES-100, RES-064, RES-088, RES-070, RES-016, RES-091, RES-007, RES-063]
+STU-2026-0042,Chimie,reactions,advanced,kinesthetic,[RES-014, RES-065, RES-085, RES-087, RES-042, RES-041, RES-084, RES-089, RES-088, RES-005, RES-043, RES-086, RES-076, RES-098]

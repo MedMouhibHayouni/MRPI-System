@@ -1,0 +1,392 @@
+[
+  {
+    "student_id": "STU-2026-0001",
+    "valid": true,
+    "validation_error": null,
+    "request": {
+      "student_id": "STU-2026-0001",
+      "subject": "mathematiques",
+      "weak_concept": "fractions",
+      "academic_level": "beginner",
+      "learning_style": "visual",
+      "past_interactions": [
+        "RES-024",
+        "RES-064",
+        "RES-007",
+        "RES-010",
+        "RES-027",
+        "RES-017",
+        "RES-075",
+        "RES-100",
+        "RES-087",
+        "RES-001"
+      ]
+    },
+    "recommendations": [
+      {
+        "resource_id": "RES-003",
+        "title": "Fractions avancées - vidéo",
+        "type": "video",
+        "difficulty": "intermediate",
+        "relevance_score": 1.0,
+        "estimated_time_min": 12
+      },
+      {
+        "resource_id": "RES-095",
+        "title": "Exercices fractions débutant supplémentaires",
+        "type": "exercise",
+        "difficulty": "beginner",
+        "relevance_score": 0.5,
+        "estimated_time_min": 30
+      },
+      {
+        "resource_id": "RES-002",
+        "title": "Exercices fractions niveau 1",
+        "type": "exercise",
+        "difficulty": "beginner",
+        "relevance_score": 0.5,
+        "estimated_time_min": 30
+      },
+      {
+        "resource_id": "RES-023",
+        "title": "Introduction aux fonctions",
+        "type": "micro_lesson",
+        "difficulty": "intermediate",
+        "relevance_score": 0.4237,
+        "estimated_time_min": 20
+      },
+      {
+        "resource_id": "RES-022",
+        "title": "Statistiques descriptives - vidéo",
+        "type": "video",
+        "difficulty": "advanced",
+        "relevance_score": 0.2632,
+        "estimated_time_min": 25
+      },
+      {
+        "resource_id": "RES-074",
+        "title": "Dérivées partielles - vidéo",
+        "type": "video",
+        "difficulty": "advanced",
+        "relevance_score": 0.2134,
+        "estimated_time_min": 20
+      },
+      {
+        "resource_id": "RES-073",
+        "title": "Introduction aux dérivées partielles",
+        "type": "micro_lesson",
+        "difficulty": "advanced",
+        "relevance_score": 0.1686,
+        "estimated_time_min": 22
+      },
+      {
+        "resource_id": "RES-083",
+        "title": "Exercices optique débutant",
+        "type": "exercise",
+        "difficulty": "beginner",
+        "relevance_score": 0.1347,
+        "estimated_time_min": 18
+      },
+      {
+        "resource_id": "RES-033",
+        "title": "Lois de Newton - vidéo",
+        "type": "video",
+        "difficulty": "intermediate",
+        "relevance_score": 0.1276,
+        "estimated_time_min": 18
+      },
+      {
+        "resource_id": "RES-065",
+        "title": "Exercices probabilités débutant",
+        "type": "exercise",
+        "difficulty": "beginner",
+        "relevance_score": 0.1227,
+        "estimated_time_min": 18
+      },
+      {
+        "resource_id": "RES-019",
+        "title": "Exercices probabilités avancées",
+        "type": "exercise",
+        "difficulty": "advanced",
+        "relevance_score": 0.1158,
+        "estimated_time_min": 35
+      },
+      {
+        "resource_id": "RES-072",
+        "title": "Exercices dérivées niveau intermédiaire",
+        "type": "exercise",
+        "difficulty": "intermediate",
+        "relevance_score": 0.1035,
+        "estimated_time_min": 25
+      },
+      {
+        "resource_id": "RES-014",
+        "title": "Géométrie dans l'espace - vidéo",
+        "type": "video",
+        "difficulty": "intermediate",
+        "relevance_score": 0.0971,
+        "estimated_time_min": 22
+      },
+      {
+        "resource_id": "RES-098",
+        "title": "Exercices mécanique intermédiaire 2",
+        "type": "exercise",
+        "difficulty": "intermediate",
+        "relevance_score": 0.095,
+        "estimated_time_min": 28
+      },
+      {
+        "resource_id": "RES-062",
+        "title": "Théorème de Pythagore",
+        "type": "micro_lesson",
+        "difficulty": "intermediate",
+        "relevance_score": 0.0771,
+        "estimated_time_min": 16
+      },
+      {
+        "resource_id": "RES-043",
+        "title": "Exercices liaisons chimiques",
+        "type": "exercise",
+        "difficulty": "intermediate",
+        "relevance_score": 0.0296,
+        "estimated_time_min": 25
+      },
+      {
+        "resource_id": "RES-078",
+        "title": "Travail et énergie",
+        "type": "micro_lesson",
+        "difficulty": "advanced",
+        "relevance_score": 0.0262,
+        "estimated_time_min": 20
+      },
+      {
+        "resource_id": "RES-090",
+        "title": "Exercices subjonctif",
+        "type": "exercise",
+        "difficulty": "intermediate",
+        "relevance_score": 0.0221,
+        "estimated_time_min": 22
+      },
+      {
+        "resource_id": "RES-048",
+        "title": "Subjonctif et conditionnel - vidéo",
+        "type": "video",
+        "difficulty": "intermediate",
+        "relevance_score": 0.017,
+        "estimated_time_min": 18
+      },
+      {
+        "resource_id": "RES-093",
+        "title": "Techniques de lecture avancée",
+        "type": "micro_lesson",
+        "difficulty": "advanced",
+        "relevance_score": 0.0072,
+        "estimated_time_min": 15
+      }
+    ],
+    "num_recommendations": 20
+  },
+  {
+    "student_id": "STU-2026-0011",
+    "valid": true,
+    "validation_error": null,
+    "request": {
+      "student_id": "STU-2026-0011",
+      "subject": "mathematiques",
+      "weak_concept": "fractions",
+      "academic_level": "beginner",
+      "learning_style": "auditory",
+      "past_interactions": [
+        "RES-001",
+        "RES-003",
+        "RES-033",
+        "RES-064",
+        "RES-073",
+        "RES-090",
+        "RES-043",
+        "RES-075",
+        "RES-083",
+        "RES-017",
+        "RES-066"
+      ]
+    },
+    "recommendations": [
+      {
+        "resource_id": "RES-031",
+        "title": "Les forces et le mouvement",
+        "type": "micro_lesson",
+        "difficulty": "beginner",
+        "relevance_score": 1.0,
+        "estimated_time_min": 15
+      },
+      {
+        "resource_id": "RES-004",
+        "title": "Additions et soustractions",
+        "type": "micro_lesson",
+        "difficulty": "beginner",
+        "relevance_score": 0.9215,
+        "estimated_time_min": 10
+      },
+      {
+        "resource_id": "RES-024",
+        "title": "Fonctions linéaires et affines",
+        "type": "exercise",
+        "difficulty": "intermediate",
+        "relevance_score": 0.8355,
+        "estimated_time_min": 30
+      },
+      {
+        "resource_id": "RES-052",
+        "title": "Exercices fractions niveau 2",
+        "type": "exercise",
+        "difficulty": "intermediate",
+        "relevance_score": 0.7537,
+        "estimated_time_min": 22
+      },
+      {
+        "resource_id": "RES-071",
+        "title": "Taux de variation",
+        "type": "micro_lesson",
+        "difficulty": "intermediate",
+        "relevance_score": 0.7463,
+        "estimated_time_min": 18
+      },
+      {
+        "resource_id": "RES-063",
+        "title": "Trigonométrie - vidéo",
+        "type": "video",
+        "difficulty": "advanced",
+        "relevance_score": 0.7451,
+        "estimated_time_min": 22
+      },
+      {
+        "resource_id": "RES-095",
+        "title": "Exercices fractions débutant supplémentaires",
+        "type": "exercise",
+        "difficulty": "beginner",
+        "relevance_score": 0.5,
+        "estimated_time_min": 30
+      },
+      {
+        "resource_id": "RES-002",
+        "title": "Exercices fractions niveau 1",
+        "type": "exercise",
+        "difficulty": "beginner",
+        "relevance_score": 0.5,
+        "estimated_time_min": 30
+      },
+      {
+        "resource_id": "RES-092",
+        "title": "Exercices grammaire avancée",
+        "type": "exercise",
+        "difficulty": "advanced",
+        "relevance_score": 0.3241,
+        "estimated_time_min": 30
+      },
+      {
+        "resource_id": "RES-027",
+        "title": "Exercices dérivées simples",
+        "type": "exercise",
+        "difficulty": "advanced",
+        "relevance_score": 0.2004,
+        "estimated_time_min": 40
+      },
+      {
+        "resource_id": "RES-044",
+        "title": "Réactions chimiques - micro-leçon",
+        "type": "micro_lesson",
+        "difficulty": "intermediate",
+        "relevance_score": 0.1735,
+        "estimated_time_min": 20
+      },
+      {
+        "resource_id": "RES-087",
+        "title": "Liaisons covalentes - vidéo",
+        "type": "video",
+        "difficulty": "advanced",
+        "relevance_score": 0.1606,
+        "estimated_time_min": 18
+      },
+      {
+        "resource_id": "RES-076",
+        "title": "Exercices intégrales simples",
+        "type": "exercise",
+        "difficulty": "advanced",
+        "relevance_score": 0.1559,
+        "estimated_time_min": 38
+      },
+      {
+        "resource_id": "RES-025",
+        "title": "Fonctions et graphes - vidéo",
+        "type": "video",
+        "difficulty": "intermediate",
+        "relevance_score": 0.1501,
+        "estimated_time_min": 18
+      },
+      {
+        "resource_id": "RES-014",
+        "title": "Géométrie dans l'espace - vidéo",
+        "type": "video",
+        "difficulty": "intermediate",
+        "relevance_score": 0.1476,
+        "estimated_time_min": 22
+      },
+      {
+        "resource_id": "RES-053",
+        "title": "Fractions complexes - vidéo",
+        "type": "video",
+        "difficulty": "advanced",
+        "relevance_score": 0.1363,
+        "estimated_time_min": 16
+      },
+      {
+        "resource_id": "RES-041",
+        "title": "Atomes et molécules",
+        "type": "micro_lesson",
+        "difficulty": "beginner",
+        "relevance_score": 0.1363,
+        "estimated_time_min": 15
+      },
+      {
+        "resource_id": "RES-034",
+        "title": "Exercices dynamique",
+        "type": "exercise",
+        "difficulty": "intermediate",
+        "relevance_score": 0.1239,
+        "estimated_time_min": 30
+      },
+      {
+        "resource_id": "RES-054",
+        "title": "Exercices fractions avancées",
+        "type": "exercise",
+        "difficulty": "advanced",
+        "relevance_score": 0.0537,
+        "estimated_time_min": 30
+      },
+      {
+        "resource_id": "RES-010",
+        "title": "Exercices équations 2ème degré",
+        "type": "exercise",
+        "difficulty": "advanced",
+        "relevance_score": 0.0219,
+        "estimated_time_min": 35
+      }
+    ],
+    "num_recommendations": 20
+  },
+  {
+    "student_id": "STU-2026-0032",
+    "valid": true,
+    "validation_error": null,
+    "request": {
+      "student_id": "STU-2026-0032",
+      "subject": "mathematiques",
+      "weak_concept": "integration",
+      "academic_level": "advanced",
+      "learning_style": "kinesthetic",
+      "past_interactions": []
+    },
+    "recommendations": [],
+    "num_recommendations": 0
+  }
+]

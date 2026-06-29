@@ -1,9 +1,36 @@
-import pandas as pd
-import numpy as np
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.metrics.pairwise import cosine_similarity
-import pickle
+"""
+Content-Based Filtering Engine (CBF).
+
+Ce module implémente le moteur de recommandation basé sur le contenu.
+Il encode les ressources pédagogiques via One-Hot Encoding sur quatre
+attributs (subject, concept, difficulty, type), puis calcule la similarité
+cosinus entre le profil de l'apprenant et chaque ressource candidate.
+
+Pipeline :
+    1. build_vectorizer   — encode resources_df et persiste l'encodeur (pickle)
+    2. get_or_build_vectorizer — charge le cache si valide, reconstruit sinon
+    3. prerequisites_met  — vérifie les prérequis avant de recommander
+    4. recommend_cbf      — filtre, classe et retourne les top-N ressources
+
+Cache :
+    L'encodeur est mis en cache dans models/encoder.pkl.
+    Un fingerprint SHA-256 de resources.csv détecte les changements
+    et déclenche une reconstruction automatique.
+
+Dépendances :
+    - src/schemas/request.py : RecommendationRequest (profil apprenant validé)
+    - src/cache_utils.py     : compute_source_fingerprint, is_cache_valid
+"""
+
 import os
+import pickle
+
+import numpy as np
+import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.preprocessing import OneHotEncoder
+
+from src.cache_utils import compute_source_fingerprint, is_cache_valid
 from src.schemas.request import RecommendationRequest
 
 # ─────────────────────────────────────────
@@ -12,7 +39,17 @@ from src.schemas.request import RecommendationRequest
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 MODELS_DIR = os.path.join(BASE_DIR, "models")
+ENCODER_PATH = os.path.join(MODELS_DIR, "encoder.pkl")
 
+# Fichiers source dont dépend l'encodeur CBF.
+SOURCE_FILES = [
+    os.path.join(DATA_DIR, "resources.csv"),
+]
+
+
+# Mapping learning_style → resource type préféré.
+# Logique pédagogique : visual/auditory → video (contenu passif),
+# kinesthetic → exercise (pratique active), textual → micro_lesson (lecture).
 
 # ─────────────────────────────────────────
 # MAPPINGS
@@ -26,26 +63,28 @@ STYLE_TO_TYPE = {
 
 
 # ─────────────────────────────────────────
-# STEP 1 — Build encoder
+# STEP 1 — Build / load encoder (avec cache pickle + fingerprint)
 # ─────────────────────────────────────────
 
 
-def build_vectorizer(resources_df, save_path=os.path.join(MODELS_DIR, "encoder.pkl")):
+def build_vectorizer(resources_df, save_path=ENCODER_PATH):
     """
-    Fit a OneHotEncoder on resource features and persist it to disk.
+    Fit a OneHotEncoder on resource features and persist it to disk via pickle.
 
     Each resource is encoded as a binary one-hot vector over four categorical
     features: subject, concept, difficulty, and type. The fitted encoder,
-    the resulting resource matrix, and the cleaned DataFrame are serialized
-    together so they can be reloaded without retraining.
+    the resulting resource matrix, the cleaned DataFrame, and a fingerprint
+    of the source data are serialized together so they can be reloaded
+    without retraining, and so staleness can be detected later.
 
     Parameters
     ----------
     resources_df : pd.DataFrame
-        DataFrame loaded from resources.csv. Contain the columns:
+        DataFrame loaded from resources.csv, expected pre-normalized in
+        casing by the caller. Must contain the columns:
         'subject', 'concept', 'difficulty', 'type'.
     save_path : str, optional
-        Destination path for the serialized encoder pickle file.
+        Destination path for the serialized pickle file.
         Defaults to <MODELS_DIR>/encoder.pkl.
 
     Returns
@@ -63,15 +102,24 @@ def build_vectorizer(resources_df, save_path=os.path.join(MODELS_DIR, "encoder.p
     encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
     resource_matrix = encoder.fit_transform(features)
 
+    model_data = {
+        "encoder": encoder,
+        "resource_matrix": resource_matrix,
+        "resources_df": resources_df,
+        "source_fingerprint": compute_source_fingerprint(SOURCE_FILES),
+    }
+
     os.makedirs(MODELS_DIR, exist_ok=True)
     with open(save_path, "wb") as f:
-        pickle.dump((encoder, resource_matrix, resources_df), f)
+        pickle.dump(model_data, f)
 
-    print(f"✓ OneHot encoder fitted on {len(resources_df)} resources.")
+    print(
+        f"✓ OneHot encoder fitted on {len(resources_df)} resources. Saved to {save_path}"
+    )
     return encoder, resource_matrix, resources_df
 
 
-def load_vectorizer(save_path=os.path.join(MODELS_DIR, "encoder.pkl")):
+def load_vectorizer(save_path=ENCODER_PATH):
     """
     Load a previously fitted encoder and its associated data from disk.
 
@@ -95,14 +143,59 @@ def load_vectorizer(save_path=os.path.join(MODELS_DIR, "encoder.pkl")):
     FileNotFoundError
         If save_path does not exist (i.e., build_vectorizer has not been run yet).
     """
+
     if not os.path.exists(save_path):
         raise FileNotFoundError(
             f"Encoder not found at '{save_path}'. "
             "Run build_vectorizer() first to train and save the encoder."
         )
     with open(save_path, "rb") as f:
-        encoder, resource_matrix, resources_df = pickle.load(f)
-    return encoder, resource_matrix, resources_df
+        data = pickle.load(f)  # ← data est un tuple (encoder, matrix, df)
+
+    return data[0], data[1], data[2]
+
+
+def get_or_build_vectorizer(resources_df, save_path=ENCODER_PATH):
+    """
+    Charge l'encodeur depuis le cache pickle s'il existe ET s'il est à jour
+    par rapport à resources.csv. Sinon, reconstruit l'encodeur à partir du
+    resources_df fourni par l'appelant (qui doit déjà être normalisé en casse).
+
+    C'est la fonction à appeler en pratique (au lieu de build_vectorizer ou
+    load_vectorizer directement) pour bénéficier de l'invalidation automatique
+    ET pour garantir que toute reconstruction utilise des données cohérentes
+    avec ce que produit RecommendationRequest.
+
+    Parameters
+    ----------
+    resources_df : pd.DataFrame
+        DataFrame de ressources à utiliser SI une reconstruction est
+        nécessaire. Doit déjà être normalisé en casse par l'appelant
+        (subject, concept en lowercase) — voir HybridEngine.__init__.
+        Si le cache est valide, ce DataFrame est ignoré et celui du cache
+        est utilisé à la place, pour rester cohérent avec ce qui a été
+        entraîné.
+    save_path : str, optional
+        Chemin du fichier pickle.
+
+    Returns
+    -------
+    encoder, resource_matrix, resources_df : voir build_vectorizer / load_vectorizer
+    """
+    if os.path.exists(save_path):
+        with open(save_path, "rb") as f:
+            model_data = pickle.load(f)
+        if is_cache_valid(model_data, SOURCE_FILES):
+            return (
+                model_data["encoder"],
+                model_data["resource_matrix"],
+                model_data["resources_df"],
+            )
+        print("⚠ Cache CBF périmé (resources.csv modifié) — reconstruction.")
+    else:
+        print("🔧 Aucun cache CBF trouvé — construction initiale.")
+
+    return build_vectorizer(resources_df, save_path)
 
 
 # ─────────────────────────────────────────
@@ -113,6 +206,7 @@ def load_vectorizer(save_path=os.path.join(MODELS_DIR, "encoder.pkl")):
 def prerequisites_met(prereq, completed_ids):
     """
     Check whether all prerequisites for a resource have been completed.
+
 
     Parameters
     ----------
@@ -162,6 +256,16 @@ def recommend_cbf(
     If the student's preferred content type yields no results, a fallback
     order is applied before considering all remaining types. The 'fallback_used'
     column in the result signals whether degraded results were returned.
+
+    Casing contract
+    ----------------
+    request.subject and request.weak_concept arrive already lowercase
+    (enforced by RecommendationRequest.strip_strings). resources_df must
+    also be lowercase in these columns for the equality filters below to
+    work — this is guaranteed by HybridEngine.__init__, which normalizes
+    resources_df before it ever reaches this function. Do not call this
+    function with a raw, un-normalized resources_df.
+
     Fallback strategy
     ------------------
     The hard filters (subject, difficulty, concept, excluded resources,
@@ -201,10 +305,12 @@ def recommend_cbf(
         - academic_level (AcademicLevel): Enum whose value maps to a difficulty string.
         - past_interactions (list[str]): Resource IDs the student has already seen.
     resources_df : pd.DataFrame
-        Full resource catalog. Must contain: 'resource_id', 'subject', 'concept',
-        'difficulty', 'type', 'prerequisites', 'title'.
+        Full resource catalog, pre-normalized in casing. Must contain:
+        'resource_id', 'subject', 'concept', 'difficulty', 'type',
+        'prerequisites', 'title'.
     encoder : OneHotEncoder
-        Fitted encoder returned by build_vectorizer() or load_vectorizer().
+        Fitted encoder returned by get_or_build_vectorizer(), trained on
+        the same casing convention as resources_df.
     resource_matrix : np.ndarray of shape (n_resources, n_features_encoded)
         One-hot matrix for all resources, row-aligned with resources_df.
     top_n : int, optional
@@ -241,6 +347,7 @@ def recommend_cbf(
         base_filter = base_filter[
             base_filter["prerequisites"].isna() | (base_filter["prerequisites"] == "")
         ]
+
     else:
         base_filter = base_filter[
             base_filter["prerequisites"].apply(
