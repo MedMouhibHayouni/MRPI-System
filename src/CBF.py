@@ -1,27 +1,18 @@
 """
 Content-Based Filtering Engine (CBF).
 
-Ce module implémente le moteur de recommandation basé sur le contenu.
-Il encode les ressources pédagogiques via One-Hot Encoding sur quatre
-attributs (subject, concept, difficulty, type), puis calcule la similarité
-cosinus entre le profil de l'apprenant et chaque ressource candidate.
+Encode les ressources pédagogiques via One-Hot Encoding pondéré sur
+quatre attributs (subject, concept, difficulty, type), puis calcule la
+similarité cosinus entre le profil de l'apprenant et chaque ressource
+du catalogue.
 
-Pipeline :
-    1. build_vectorizer   — encode resources_df et persiste l'encodeur (pickle)
-    2. get_or_build_vectorizer — charge le cache si valide, reconstruit sinon
-    3. prerequisites_met  — vérifie les prérequis avant de recommander
-    4. recommend_cbf      — filtre, classe et retourne les top-N ressources
-
-Cache :
-    L'encodeur est mis en cache dans models/encoder.pkl.
-    Un fingerprint SHA-256 de resources.csv détecte les changements
-    et déclenche une reconstruction automatique.
-
-Dépendances :
-    - src/schemas/request.py : RecommendationRequest (profil apprenant validé)
-    - src/cache_utils.py     : compute_source_fingerprint, is_cache_valid
+Per CDC p.12 : ces quatre dimensions sont des dimensions notées du
+vecteur, pas des filtres d'admission durs. Aucun filtre exact-match
+n'est appliqué sur ces dimensions : le classement se fait par similarité
+pondérée, après exclusion des ressources déjà consommées ou inéligibles.
 """
 
+import ast
 import os
 import pickle
 
@@ -33,33 +24,63 @@ from sklearn.preprocessing import OneHotEncoder
 from src.cache_utils import compute_source_fingerprint, is_cache_valid
 from src.schemas.request import RecommendationRequest
 
-# ─────────────────────────────────────────
-# PATHS
-# ─────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 ENCODER_PATH = os.path.join(MODELS_DIR, "encoder.pkl")
 
-# Fichiers source dont dépend l'encodeur CBF.
-SOURCE_FILES = [
-    os.path.join(DATA_DIR, "resources.csv"),
-]
+SOURCE_FILES = [os.path.join(DATA_DIR, "resources.csv")]
 
-
-# Mapping learning_style → resource type préféré.
-# Logique pédagogique : visual/auditory → video (contenu passif),
-# kinesthetic → exercise (pratique active), textual → micro_lesson (lecture).
-
-# ─────────────────────────────────────────
-# MAPPINGS
-# ─────────────────────────────────────────
 STYLE_TO_TYPE = {
     "visual": "video",
     "auditory": "video",
     "kinesthetic": "exercise",
     "textual": "micro_lesson",
 }
+
+FEATURE_ORDER = ["subject", "concept", "difficulty", "type"]
+FEATURE_WEIGHTS = {
+    "subject": 2.0,
+    "concept": 3.0,
+    "difficulty": 2.0,
+    "type": 0.5,
+}
+
+
+def _build_weight_vector(encoder: OneHotEncoder) -> np.ndarray:
+    """
+    Construit un vecteur de poids aligné colonne-par-colonne avec la
+    sortie du OneHotEncoder, pour pondérer différemment chacune des
+    quatre dimensions (subject, concept, difficulty, type) dans le
+    calcul de similarité cosinus.
+
+    Pour chaque feature (dans l'ordre FEATURE_ORDER), répète son poids
+    (FEATURE_WEIGHTS) une fois par catégorie encodée pour cette feature
+    (encoder.categories_), puis concatène tous les blocs. Le résultat a
+    la même dimension que la sortie one-hot de l'encoder, colonne par
+    colonne.
+
+    Appelée uniquement lors de la (re)construction du modèle
+    (build_vectorizer) — jamais recalculée sur le chemin de requête
+    (recommend_cbf reçoit weight_vector déjà calculé en paramètre).
+
+    Parameters
+    ----------
+    encoder : OneHotEncoder
+        Encodeur déjà fit sur les ressources (encoder.categories_ doit
+        être peuplé).
+
+    Returns
+    -------
+    np.ndarray
+        Vecteur de poids, une valeur par colonne one-hot.
+    """
+
+    blocks = []
+    for feature_name, categories in zip(FEATURE_ORDER, encoder.categories_):
+        weight = FEATURE_WEIGHTS[feature_name]
+        blocks.append(np.full(len(categories), weight))
+    return np.concatenate(blocks)
 
 
 # ─────────────────────────────────────────
@@ -69,42 +90,44 @@ STYLE_TO_TYPE = {
 
 def build_vectorizer(resources_df, save_path=ENCODER_PATH):
     """
-    Fit a OneHotEncoder on resource features and persist it to disk via pickle.
+    Entraîne un OneHotEncoder sur les quatre dimensions catégorielles
+    des ressources (subject, concept, difficulty, type), calcule la
+    matrice de ressources pondérée (resource_matrix = one-hot brut ×
+    weight_vector), et persiste l'ensemble (encoder, matrice pondérée,
+    weight_vector, DataFrame source, fingerprint) sur disque.
 
-    Each resource is encoded as a binary one-hot vector over four categorical
-    features: subject, concept, difficulty, and type. The fitted encoder,
-    the resulting resource matrix, the cleaned DataFrame, and a fingerprint
-    of the source data are serialized together so they can be reloaded
-    without retraining, and so staleness can be detected later.
+    handle_unknown="ignore" : une catégorie non vue à l'entraînement
+    (ex: nouvelle matière ajoutée après le fit) produit un vecteur nul
+    pour cette dimension au lieu de lever une exception au moment du
+    transform() sur une requête.
 
     Parameters
     ----------
     resources_df : pd.DataFrame
-        DataFrame loaded from resources.csv, expected pre-normalized in
-        casing by the caller. Must contain the columns:
-        'subject', 'concept', 'difficulty', 'type'.
-    save_path : str, optional
-        Destination path for the serialized pickle file.
-        Defaults to <MODELS_DIR>/encoder.pkl.
+        Catalogue complet des ressources, doit contenir les colonnes
+        FEATURE_ORDER.
+    save_path : str
+        Chemin de sauvegarde du pickle.
 
     Returns
     -------
-    encoder : OneHotEncoder
-        Fitted scikit-learn OneHotEncoder instance.
-    resource_matrix : np.ndarray of shape (n_resources, n_features_encoded)
-        One-hot encoded matrix for all resources.
-    resources_df : pd.DataFrame
-        Reset-indexed copy of the input DataFrame.
+    Tuple[OneHotEncoder, np.ndarray, pd.DataFrame, np.ndarray]
+        encoder, resource_matrix (pondérée), resources_df (index reset),
+        weight_vector.
     """
     resources_df = resources_df.reset_index(drop=True).copy()
-    features = resources_df[["subject", "concept", "difficulty", "type"]]
+    features = resources_df[FEATURE_ORDER]
 
     encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
-    resource_matrix = encoder.fit_transform(features)
+    raw_matrix = encoder.fit_transform(features)
+
+    weight_vector = _build_weight_vector(encoder)
+    resource_matrix = raw_matrix * weight_vector
 
     model_data = {
         "encoder": encoder,
         "resource_matrix": resource_matrix,
+        "weight_vector": weight_vector,
         "resources_df": resources_df,
         "source_fingerprint": compute_source_fingerprint(SOURCE_FILES),
     }
@@ -114,34 +137,38 @@ def build_vectorizer(resources_df, save_path=ENCODER_PATH):
         pickle.dump(model_data, f)
 
     print(
-        f"✓ OneHot encoder fitted on {len(resources_df)} resources. Saved to {save_path}"
+        f"✓ OneHot encoder fitted on {len(resources_df)} resources (weighted). "
+        f"Saved to {save_path}"
     )
-    return encoder, resource_matrix, resources_df
+    return encoder, resource_matrix, resources_df, weight_vector
 
 
 def load_vectorizer(save_path=ENCODER_PATH):
     """
-    Load a previously fitted encoder and its associated data from disk.
+    Charge un encodeur CBF et ses données associées depuis un pickle
+    déjà construit, sans vérifier sa validité vis-à-vis de
+    resources.csv (voir get_or_build_vectorizer() pour la version avec
+    invalidation par fingerprint).
+
+    Point de lecture unique du pickle CBF — get_or_build_vectorizer()
+    délègue systématiquement ici plutôt que de relire le pickle en
+    inline, pour garder une seule implémentation du format de
+    désérialisation.
 
     Parameters
     ----------
-    save_path : str, optional
-        Path to the pickle file produced by build_vectorizer().
-        Defaults to <MODELS_DIR>/encoder.pkl.
+    save_path : str
+        Chemin du pickle à charger.
 
     Returns
     -------
-    encoder : OneHotEncoder
-        Fitted scikit-learn OneHotEncoder instance.
-    resource_matrix : np.ndarray of shape (n_resources, n_features_encoded)
-        One-hot encoded matrix for all resources.
-    resources_df : pd.DataFrame
-        DataFrame of resources aligned with resource_matrix row indices.
+    Tuple[OneHotEncoder, np.ndarray, pd.DataFrame, np.ndarray]
+        encoder, resource_matrix, resources_df, weight_vector.
 
     Raises
     ------
     FileNotFoundError
-        If save_path does not exist (i.e., build_vectorizer has not been run yet).
+        Si aucun fichier n'existe à save_path.
     """
 
     if not os.path.exists(save_path):
@@ -150,47 +177,43 @@ def load_vectorizer(save_path=ENCODER_PATH):
             "Run build_vectorizer() first to train and save the encoder."
         )
     with open(save_path, "rb") as f:
-        data = pickle.load(f)  # ← data est un tuple (encoder, matrix, df)
+        data = pickle.load(f)
 
-    return data[0], data[1], data[2]
+    return (
+        data["encoder"],
+        data["resource_matrix"],
+        data["resources_df"],
+        data["weight_vector"],
+    )
 
 
 def get_or_build_vectorizer(resources_df, save_path=ENCODER_PATH):
     """
-    Charge l'encodeur depuis le cache pickle s'il existe ET s'il est à jour
-    par rapport à resources.csv. Sinon, reconstruit l'encodeur à partir du
-    resources_df fourni par l'appelant (qui doit déjà être normalisé en casse).
-
-    C'est la fonction à appeler en pratique (au lieu de build_vectorizer ou
-    load_vectorizer directement) pour bénéficier de l'invalidation automatique
-    ET pour garantir que toute reconstruction utilise des données cohérentes
-    avec ce que produit RecommendationRequest.
+    Point d'entrée principal pour obtenir un vectorizer CBF utilisable :
+    charge le cache pickle existant si présent ET valide (fingerprint
+    de resources.csv inchangé), sinon reconstruit l'encodeur et la
+    matrice pondérée depuis resources_df.
 
     Parameters
     ----------
     resources_df : pd.DataFrame
-        DataFrame de ressources à utiliser SI une reconstruction est
-        nécessaire. Doit déjà être normalisé en casse par l'appelant
-        (subject, concept en lowercase) — voir HybridEngine.__init__.
-        Si le cache est valide, ce DataFrame est ignoré et celui du cache
-        est utilisé à la place, pour rester cohérent avec ce qui a été
-        entraîné.
-    save_path : str, optional
-        Chemin du fichier pickle.
+        Catalogue de ressources, utilisé seulement si une
+        reconstruction est nécessaire.
+    save_path : str
+        Chemin du pickle.
 
     Returns
     -------
-    encoder, resource_matrix, resources_df : voir build_vectorizer / load_vectorizer
+    Tuple[OneHotEncoder, np.ndarray, pd.DataFrame, np.ndarray]
+        encoder, resource_matrix, resources_df, weight_vector — toujours
+        les quatre valeurs, que le chemin soit cache-hit ou
+        reconstruction.
     """
     if os.path.exists(save_path):
         with open(save_path, "rb") as f:
             model_data = pickle.load(f)
         if is_cache_valid(model_data, SOURCE_FILES):
-            return (
-                model_data["encoder"],
-                model_data["resource_matrix"],
-                model_data["resources_df"],
-            )
+            return load_vectorizer(save_path)
         print("⚠ Cache CBF périmé (resources.csv modifié) — reconstruction.")
     else:
         print("🔧 Aucun cache CBF trouvé — construction initiale.")
@@ -203,29 +226,75 @@ def get_or_build_vectorizer(resources_df, save_path=ENCODER_PATH):
 # ─────────────────────────────────────────
 
 
-def prerequisites_met(prereq, completed_ids):
-    """
-    Check whether all prerequisites for a resource have been completed.
+def _normalize_prerequisites(prerequisites):
+    if prerequisites is None:
+        return []
+    if isinstance(prerequisites, float) and pd.isna(prerequisites):
+        return []
+    if isinstance(prerequisites, (list, tuple, set)):
+        return [str(resource_id).strip() for resource_id in prerequisites if str(resource_id).strip()]
+    if isinstance(prerequisites, str):
+        value = prerequisites.strip()
+        if not value or value.lower() == "nan":
+            return []
+        if value.startswith("[") and value.endswith("]"):
+            try:
+                parsed = ast.literal_eval(value)
+            except (SyntaxError, ValueError):
+                parsed = value.strip("[]")
+            else:
+                if isinstance(parsed, (list, tuple, set)):
+                    return [
+                        str(resource_id).strip()
+                        for resource_id in parsed
+                        if str(resource_id).strip()
+                    ]
+        separators = [";", ","]
+        values = [value]
+        for separator in separators:
+            if separator in value:
+                values = value.split(separator)
+                break
+        return [resource_id.strip().strip("'\"") for resource_id in values if resource_id.strip().strip("'\"")]
+    return []
 
+
+def prerequisites_met(prerequisites, completed_ids):
+    """
+    Détermine si une ressource est accessible à un étudiant compte tenu
+    de ses ressources déjà complétées (completed_ids).
+
+    Si prerequisites n'est pas une collection itérable exploitable
+    (list, tuple, set — ex: NaN, None, ou une chaîne mal formée issue du
+    CSV), la ressource est considérée accessible par défaut (pas de
+    prérequis interprétable = pas de blocage). Sinon, tous les
+    identifiants listés dans prerequisites doivent être présents dans
+    completed_ids.
+
+    Utilisée à la fois par CBF.py (filtre d'éligibilité avant scoring)
+    et par metrics.py (définition du ground truth de pertinence,
+    get_relevant_resources).
 
     Parameters
     ----------
-    prereq : str
-        Comma-separated string of prerequisite resource IDs, or NaN/empty
-        string if the resource has no prerequisites.
-    completed_ids : list[str]
-        List of resource IDs the student has already interacted with.
+    prerequisites : Any
+        Valeur brute de la colonne 'prerequisites' pour une ressource
+        (liste d'IDs attendue, mais peut être NaN/malformée).
+    completed_ids : Iterable[str]
+        IDs de ressources déjà complétées par l'étudiant.
 
     Returns
     -------
     bool
-        True if all prerequisites are satisfied or if there are none.
-        False if at least one required resource ID is missing from completed_ids.
+        True si la ressource est accessible (tous les prérequis sont
+        satisfaits, ou aucun prérequis interprétable), False sinon.
     """
-    if pd.isna(prereq) or prereq == "":
+
+    required_ids = _normalize_prerequisites(prerequisites)
+    if not required_ids:
         return True
-    required = [r.strip() for r in prereq.split(",")]
-    return all(r in completed_ids for r in required)
+    completed = {str(resource_id).strip() for resource_id in (completed_ids or [])}
+    return all(resource_id in completed for resource_id in required_ids)
 
 
 # ─────────────────────────────────────────
@@ -238,91 +307,62 @@ def recommend_cbf(
     resources_df: pd.DataFrame,
     encoder: OneHotEncoder,
     resource_matrix,
+    weight_vector: np.ndarray = None,
     top_n: int = 5,
 ):
     """
-    Generate content-based filtering (CBF) recommendations for a student.
+    Génère les recommandations Content-Based Filtering pour un profil
+    apprenant donné.
 
-    The function applies three successive filters — subject/difficulty/concept,
-    exclusion of already-seen resources, and prerequisite validation — then
-    ranks the remaining candidates by cosine similarity between a learner
-    profile vector and the one-hot resource matrix.
+    Pipeline :
+    1. Construit un profil de requête à 4 dimensions (subject,
+       weak_concept, academic_level, type de contenu dérivé du
+       learning_style via STYLE_TO_TYPE).
+    2. Filtre le catalogue en excluant : les ressources déjà consommées
+       (past_interactions), et les ressources dont les prérequis ne
+       sont pas satisfaits (prerequisites_met) — ou, si l'étudiant n'a
+       aucune interaction passée, uniquement les ressources sans
+       prérequis du tout (cold-start : impossible de vérifier des
+       prérequis sans historique, donc on ne propose que l'accessible
+       d'office). Ce filtrage est un filtre d'ÉLIGIBILITÉ dur — il
+       détermine le pool de candidats, il n'affecte pas leur score.
+    3. Sur ce pool filtré, encode le profil de requête via le même
+       OneHotEncoder que les ressources, applique le même weight_vector
+       (recalculé seulement si non fourni, sinon réutilisé tel quel —
+       voir docstring module), et calcule la similarité cosinus entre
+       le vecteur de profil et chaque ressource candidate.
+    4. Retourne les top_n ressources les mieux notées, avec un flag
+       fallback_used indiquant si le type de contenu de la ressource
+       diffère du type dérivé du learning_style demandé (utilisé en
+       aval par hybrid.py pour appliquer une pénalité de fallback).
 
-    The learner profile vector is built from the same four features used to
-    encode resources (subject, weak_concept, academic_level, preferred type),
-    which ensures the similarity score reflects how closely each resource
-    matches the student's current learning context.
-
-    If the student's preferred content type yields no results, a fallback
-    order is applied before considering all remaining types. The 'fallback_used'
-    column in the result signals whether degraded results were returned.
-
-    Casing contract
-    ----------------
-    request.subject and request.weak_concept arrive already lowercase
-    (enforced by RecommendationRequest.strip_strings). resources_df must
-    also be lowercase in these columns for the equality filters below to
-    work — this is guaranteed by HybridEngine.__init__, which normalizes
-    resources_df before it ever reaches this function. Do not call this
-    function with a raw, un-normalized resources_df.
-
-    Fallback strategy
-    ------------------
-    The hard filters (subject, difficulty, concept, excluded resources,
-    prerequisites) are never relaxed — they define the pool of pedagogically
-    valid candidates regardless of content type.
-
-    Once that pool (`base_filter`) is established, the function tries to
-    match the student's preferred content type (`lesson_type`, derived from
-    their learning style). If no resource of that type survives the hard
-    filters, a secondary preference order is consulted:
-
-        video        -> micro_lesson -> exercise
-        exercise     -> micro_lesson -> video
-        micro_lesson -> exercise     -> video
-
-    The first non-empty type in this order is used. If none of the fallback
-    types yield results either, the function returns the entire `base_filter`
-    pool unfiltered by type, as a last resort.
-
-    Rationale: relevance to the student's actual learning context (subject,
-    concept, difficulty, prerequisites) is prioritized over matching their
-    preferred content format. Returning a relevant resource in a suboptimal
-    format is preferable to returning no recommendation at all.
-
-    The `fallback_used` column in the result signals whether a fallback was
-    triggered (True) or the preferred type was matched directly (False),
-    allowing downstream consumers (API layer, frontend, evaluation metrics)
-    to distinguish optimal from degraded recommendations.
+    Note : les 4 dimensions notées (subject, concept, difficulty, type)
+    ne sont JAMAIS filtrées en dur — seuls past_interactions et
+    prerequisites le sont. Si le pool filtré est vide, retourne un
+    DataFrame vide plutôt que de lever une exception.
 
     Parameters
     ----------
     request : RecommendationRequest
-        Pydantic request object containing:
-        - weak_concept (str): The concept the student is struggling with.
-        - learning_style (LearningStyle): Enum mapped to a content type via STYLE_TO_TYPE.
-        - subject (str): The subject area to filter on.
-        - academic_level (AcademicLevel): Enum whose value maps to a difficulty string.
-        - past_interactions (list[str]): Resource IDs the student has already seen.
+        Profil apprenant validé (Pydantic).
     resources_df : pd.DataFrame
-        Full resource catalog, pre-normalized in casing. Must contain:
-        'resource_id', 'subject', 'concept', 'difficulty', 'type',
-        'prerequisites', 'title'.
+        Catalogue complet des ressources.
     encoder : OneHotEncoder
-        Fitted encoder returned by get_or_build_vectorizer(), trained on
-        the same casing convention as resources_df.
-    resource_matrix : np.ndarray of shape (n_resources, n_features_encoded)
-        One-hot matrix for all resources, row-aligned with resources_df.
-    top_n : int, optional
-        Maximum number of recommendations to return. Defaults to 5.
-        Capped automatically if fewer candidates are available.
+        Encodeur CBF déjà fit.
+    resource_matrix
+        Matrice pondérée des ressources (toutes, pas seulement le pool
+        filtré — le filtrage se fait après, par indexation).
+    weight_vector : np.ndarray, optional
+        Vecteur de poids déjà calculé. Si None, recalculé (chemin lent,
+        rétrocompatibilité uniquement).
+    top_n : int
+        Nombre maximum de ressources à retourner.
 
     Returns
     -------
     pd.DataFrame
-        Top-N recommended resources with columns:
-        ['resource_id', 'title', 'concept', 'type', 'difficulty', 'cbf_score', 'fallback_used'].
-        Returns an empty DataFrame if no resources pass the filters.
+        Colonnes : resource_id, title, concept, type, difficulty,
+        cbf_score, fallback_used. Vide si aucun candidat éligible.
     """
     weak_concept = request.weak_concept
     lesson_type = STYLE_TO_TYPE[request.learning_style.value]
@@ -332,22 +372,14 @@ def recommend_cbf(
 
     df = resources_df.reset_index(drop=True).copy()
 
-    # Base filter — subject + difficulty + concept
-    base_filter = df[
-        (df["subject"] == subject)
-        & (df["difficulty"] == difficulty)
-        & (df["concept"] == weak_concept)
-    ]
+    base_filter = df[~df["resource_id"].isin(completed_ids)]
 
-    # Exclude already seen
-    base_filter = base_filter[~base_filter["resource_id"].isin(completed_ids)]
-
-    # Prerequisites check
     if not completed_ids:
         base_filter = base_filter[
-            base_filter["prerequisites"].isna() | (base_filter["prerequisites"] == "")
+            base_filter["prerequisites"].apply(
+                lambda prerequisites: not _normalize_prerequisites(prerequisites)
+            )
         ]
-
     else:
         base_filter = base_filter[
             base_filter["prerequisites"].apply(
@@ -359,44 +391,27 @@ def recommend_cbf(
         print("⚠ No resources available for this profile.")
         return pd.DataFrame()
 
-    # Preferred type
-    fallback_used = False
-    filtered = base_filter[base_filter["type"] == lesson_type].copy()
-
-    # Fallback — if preferred type unavailable, try alternatives in order
-    if filtered.empty:
-        fallback_order = {
-            "video": ["micro_lesson", "exercise"],
-            "exercise": ["micro_lesson", "video"],
-            "micro_lesson": ["exercise", "video"],
-        }
-        for fallback_type in fallback_order.get(lesson_type, ["micro_lesson"]):
-            filtered = base_filter[base_filter["type"] == fallback_type].copy()
-            if not filtered.empty:
-                fallback_used = True
-                print(f"⚠ Fallback → {fallback_type}")
-                break
-
-    if filtered.empty:
-        filtered = base_filter.copy()
-        fallback_used = True
-
-    filtered_indices = filtered.index.tolist()
+    filtered_indices = base_filter.index.tolist()
     filtered_matrix = resource_matrix[filtered_indices]
 
-    # Build learner profile vector and compute cosine similarity
     profile = pd.DataFrame(
         [[subject, weak_concept, difficulty, lesson_type]],
-        columns=["subject", "concept", "difficulty", "type"],
+        columns=FEATURE_ORDER,
     )
-    query_vector = encoder.transform(profile)
+    raw_query = encoder.transform(profile)
+
+    if weight_vector is None:
+        weight_vector = _build_weight_vector(encoder)
+    query_vector = raw_query * weight_vector
+
     scores = cosine_similarity(query_vector, filtered_matrix)[0]
+
     top_n_safe = min(top_n, len(scores))
     top_idx = np.argsort(scores)[::-1][:top_n_safe]
 
-    result = filtered.iloc[top_idx].copy()
+    result = base_filter.iloc[top_idx].copy()
     result["cbf_score"] = scores[top_idx]
-    result["fallback_used"] = fallback_used
+    result["fallback_used"] = result["type"] != lesson_type
 
     return result[
         [

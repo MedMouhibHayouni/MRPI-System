@@ -1,37 +1,20 @@
 """
 Moteur de Filtrage Collaboratif (Collaborative Filtering Engine).
 
-Ce module:
-    1. Teste automatiquement si la SVD est utile sur les données
-    2. Sélectionne la méthode la plus adaptée (SVD-KNN ou KNN brut)
-    3. Fournit une interface unifiée pour les recommandations
-    4. Met en cache le modèle (pickle) et invalide le cache si les données source changent
+Construit ou charge un modèle CF (raw KNN ou SVD+KNN selon la variance
+expliquée) à partir de la matrice utilisateur-ressource. Le cache sur
+disque (cf_model.pkl) est invalidé automatiquement si les fichiers
+sources (interactions.csv, resources.csv) changent, via fingerprint.
 
-Architecture:
-    - Une seule classe CFEngine
-    - __init__ décide SVD vs Raw basé sur test de variance (ou charge le cache si valide)
-    - Helpers partagés pour l'agrégation et le filtrage
+CFEngine.get_recommendations(student_id) retourne les k plus proches
+voisins d'un étudiant et une liste de ressources recommandées, pondérée
+par similarité. Si l'étudiant n'existe pas dans la matrice, retourne
+student_exists=False sans erreur.
 
-Portée fonctionnelle (important, validé par le CDC) :
-    Ce moteur n'a et ne doit avoir AUCUNE notion de matière, concept ou
-    difficulté. Il opère uniquement sur la matrice utilisateur-item
-    construite depuis interactions.csv : similarité comportementale entre
-    étudiants, point final. Le CDC décrit explicitement cette absence de
-    contexte de contenu comme la source de l'effet de sérendipité
-    recherché (ressources inattendues mais pertinentes via des pairs
-    similaires). Ne pas ajouter de filtre matière/difficulté dans ce
-    fichier — si un filtrage est nécessaire, il doit vivre dans la couche
-    de fusion (hybrid.py), qui a accès au contexte de la requête et peut
-    décider au cas par cas (CBF présent vs CBF vide) où appliquer ce filtre.
-
-Cold start :
-    Si un étudiant n'a aucune ligne dans interactions.csv (aucune
-    interaction passée), il n'apparaît pas dans la matrice utilisateur-item
-    et get_recommendations() retourne student_exists=False avec une liste
-    vide. C'est un comportement attendu, pas un bug — le filtrage
-    collaboratif ne peut structurellement pas produire de signal pour un
-    utilisateur sans historique. La couche de fusion (hybrid.py) gère ce
-    cas en retombant sur CBF seul.
+model_path est résolu au moment de l'instanciation (pas figé comme
+valeur par défaut à l'import), ce qui permet de pointer l'engine vers
+un modèle différent — utile pour l'isolation des tests et pour
+reset_cf_engine(), qui force une reconstruction propre.
 """
 
 import logging
@@ -62,34 +45,52 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 CF_MODEL_PATH = os.path.join(MODELS_DIR, "cf_model.pkl")
 
-# Fichiers source dont dépend la matrice user-item.
-# IMPORTANT: adapte cette liste si get_user_item_matrix() lit d'autres fichiers
-# (ex: students.csv) que ceux listés ici. Le cache ne sera invalidé que si
-# un de CES fichiers change.
 SOURCE_FILES = [
     os.path.join(DATA_DIR, "interactions.csv"),
     os.path.join(DATA_DIR, "resources.csv"),
 ]
 
 
-# ============================================
-# CONSTRUCTION / CHARGEMENT DU MODÈLE
-# ============================================
-
-
 def build_cf_model(save_path: str = CF_MODEL_PATH) -> Dict[str, Any]:
     """
-    Construit le modèle CF (test SVD, choix de méthode, fit KNN) et le picklé.
+    Construit un modèle de Filtrage Collaboratif à partir de la matrice
+    utilisateur-ressource actuelle, en choisissant automatiquement entre
+    deux stratégies selon la variance expliquée par une SVD test.
+
+    Étapes :
+    1. Charge la matrice via get_user_item_matrix().
+    2. Fit une TruncatedSVD à SVD_TEST_K composantes uniquement pour
+       mesurer la variance expliquée cumulée (svd_variance) — ce n'est
+       pas la SVD finale utilisée pour les recommandations, seulement
+       un diagnostic pour décider si une réduction dimensionnelle est
+       pertinente sur ce dataset.
+    3. Si svd_variance >= SVD_VARIANCE_THRESHOLD (0.50) : fit une
+       TruncatedSVD à SVD_COMPONENTS (10) composantes, puis un KNN
+       cosine sur l'espace réduit (U_reduced). Stratégie "svd".
+    4. Sinon : fit un KNN cosine directement sur la matrice brute
+       (pas de réduction dimensionnelle — avec peu d'étudiants, la SVD
+       n'apporte pas de signal fiable, voir cf_config.py). Stratégie
+       "raw".
+    5. Attache une empreinte des fichiers source (fingerprint) au
+       modèle pour permettre l'invalidation automatique du cache
+       (voir cache_utils.py), puis sérialise tout le dict model_data
+       vers save_path via pickle.
+
+    Parameters
+    ----------
+    save_path : str
+        Chemin de sauvegarde du modèle pickled. Défaut : CF_MODEL_PATH.
 
     Returns
     -------
     Dict[str, Any]
-        Métadonnées et objets du modèle entraîné (type, matrix, knn,
-        svd_variance, et svd/U_reduced si SVD activé).
+        model_data contenant : type ("svd"|"raw"), matrix, knn,
+        svd_variance, et selon le type : svd, U_reduced. Toujours
+        source_fingerprint.
     """
+
     matrix = get_user_item_matrix()
 
-    # Test de variance expliquée par SVD à k=SVD_TEST_K
     svd_test = TruncatedSVD(n_components=SVD_TEST_K, random_state=42)
     svd_test.fit(matrix.values)
     svd_variance = float(svd_test.explained_variance_ratio_.sum())
@@ -143,23 +144,28 @@ def build_cf_model(save_path: str = CF_MODEL_PATH) -> Dict[str, Any]:
 
 
 def load_cf_model(save_path: str = CF_MODEL_PATH) -> Dict[str, Any]:
-    """Charge le modèle CF picklé depuis le disque.
+    """
+    Charge un modèle CF précédemment sérialisé depuis le disque, sans
+    vérifier sa validité vis-à-vis des fichiers source (voir
+    get_or_build_cf_model() pour la version avec invalidation).
 
     Parameters
     ----------
-    save_path : str, optional
-        Chemin du fichier pickle.
+    save_path : str
+        Chemin du fichier pickle à charger.
 
     Returns
     -------
     Dict[str, Any]
-        Données du modèle (voir build_cf_model).
+        model_data tel que sérialisé par build_cf_model().
 
     Raises
     ------
     FileNotFoundError
-        Si save_path n'existe pas.
+        Si aucun fichier n'existe à save_path — le modèle doit d'abord
+        être construit via build_cf_model().
     """
+
     if not os.path.exists(save_path):
         raise FileNotFoundError(
             f"CF model not found at '{save_path}'. Run build_cf_model() first."
@@ -172,18 +178,25 @@ def load_cf_model(save_path: str = CF_MODEL_PATH) -> Dict[str, Any]:
 
 def get_or_build_cf_model(save_path: str = CF_MODEL_PATH) -> Dict[str, Any]:
     """
-    Charge le modèle pickle s'il existe ET s'il est à jour par rapport aux
-    fichiers source. Sinon, reconstruit le modèle.
+    Point d'entrée principal pour obtenir un modèle CF utilisable :
+    charge le cache pickle existant si présent ET toujours valide
+    (fingerprint des fichiers source inchangé depuis sa construction),
+    sinon reconstruit le modèle depuis zéro.
+
+    Ce pattern évite de refaire un fit KNN/SVD à chaque redémarrage du
+    process tant que interactions.csv et resources.csv n'ont pas changé,
+    tout en garantissant qu'un modèle jamais périmé silencieusement
+    n'est jamais servi après une modification des données source.
 
     Parameters
     ----------
-    save_path : str, optional
-        Chemin du fichier pickle.
+    save_path : str
+        Chemin du modèle pickled à charger ou construire.
 
     Returns
     -------
     Dict[str, Any]
-        Données du modèle, chargées ou nouvellement construites.
+        model_data valide et à jour.
     """
     if os.path.exists(save_path):
         model_data = load_cf_model(save_path)
@@ -196,34 +209,52 @@ def get_or_build_cf_model(save_path: str = CF_MODEL_PATH) -> Dict[str, Any]:
     return build_cf_model(save_path)
 
 
-# ============================================
-# MOTEUR CF PRINCIPAL
-# ============================================
-
-
 class CFEngine:
-    """
-    Moteur de Filtrage Collaboratif.
+    # after
+    def __init__(self, model_path: Optional[str] = None):
+        """
+        Instancie un moteur CF prêt à servir des recommandations.
 
-    Sélectionne entre Raw KNN et SVD-KNN en fonction de la variance expliquée
-    par SVD, avec mise en cache automatique (pickle invalidé si les données
-    source changent).
+        Résout le chemin du modèle au moment de l'appel (pas figé comme
+        valeur par défaut au niveau de la signature de la classe), ce
+        qui permet de pointer une instance vers un modèle différent du
+        chemin global CF_MODEL_PATH — utile pour l'isolation des tests
+        unitaires (chaque test peut utiliser son propre fichier pickle
+        sans polluer le modèle de production) et pour reset_cf_engine(),
+        qui force une reconstruction propre du singleton global.
 
-    N'a aucune connaissance de matière/concept/difficulté — voir note de
-    module en haut du fichier.
-    """
+        Charge (ou construit si absent/périmé) le modèle via
+        get_or_build_cf_model(), puis hydrate l'état interne de
+        l'instance via _load_from_pickle().
 
-    def __init__(self, model_path: str = CF_MODEL_PATH):
-        model_data = get_or_build_cf_model(model_path)
+        Parameters
+        ----------
+        model_path : Optional[str]
+            Chemin du modèle CF. Si None, utilise CF_MODEL_PATH.
+        """
+
+        resolved_path = model_path if model_path is not None else CF_MODEL_PATH
+        model_data = get_or_build_cf_model(resolved_path)
         self._load_from_pickle(model_data)
 
     def _load_from_pickle(self, model_data: Dict[str, Any]) -> None:
-        """Charge les données et reconstruit l'état runtime depuis le modèle.
+        """
+        Hydrate les attributs d'instance à partir d'un model_data chargé
+        (matrix, svd_variance, n_neighbors), et bascule entre les deux
+        modes de fonctionnement selon model_data["type"] :
+
+        - "svd" : reconstruit un DataFrame U_reduced_df (facteurs
+          latents indexés par student_id) à partir de U_reduced pour
+          permettre des lookups par student_id cohérents avec la
+          matrice brute, active_method = "svd_knn".
+        - autre ("raw") : pas de réduction, la matrice brute sert
+          directement de feature_matrix pour le KNN, active_method =
+          "raw_knn".
 
         Parameters
         ----------
         model_data : Dict[str, Any]
-            Données issues de build_cf_model / load_cf_model.
+            Modèle CF chargé depuis pickle (build_cf_model /load_cf_model).
         """
         self.matrix = model_data["matrix"]
         self.svd_variance = model_data["svd_variance"]
@@ -234,10 +265,11 @@ class CFEngine:
             self.active_method = "svd_knn"
             self.svd = model_data["svd"]
             self.U_reduced = model_data["U_reduced"]
+            actual_components = self.U_reduced.shape[1]
             self.U_reduced_df = pd.DataFrame(
                 self.U_reduced,
                 index=self.matrix.index,
-                columns=[f"factor_{i + 1}" for i in range(SVD_COMPONENTS)],
+                columns=[f"factor_{i + 1}" for i in range(actual_components)],
             )
         else:
             self.use_svd = False
@@ -250,25 +282,32 @@ class CFEngine:
         self, student_id: str, n_recommendations: int = 3
     ) -> Dict[str, Any]:
         """
-        Point d'entrée principal pour les recommandations.
+        Point d'entrée public pour obtenir des recommandations CF pour
+        un étudiant donné. Sélectionne automatiquement la bonne paire
+        (feature_matrix, raw_matrix) selon que le modèle actif utilise
+        la SVD ou non, puis délègue à _recommend().
 
-        Délègue à _recommend() avec les matrices appropriées selon la méthode active:
-        - SVD-KNN: feature_matrix = espace réduit, raw_matrix = matrice brute
-        - Raw KNN: feature_matrix = raw_matrix = matrice brute
+        - Mode SVD : la recherche de voisins (KNN) se fait dans
+          l'espace réduit (U_reduced_df), mais les scores de
+          recommandation finaux sont calculés sur la matrice brute
+          (self.matrix) — la réduction dimensionnelle sert uniquement
+          à trouver des voisins, pas à calculer les scores prédits.
+        - Mode raw : les deux rôles (recherche de voisins et calcul de
+          score) utilisent la même matrice brute.
 
         Parameters
         ----------
         student_id : str
-            Identifiant de l'étudiant (ex: 'STU-2026-0001').
-        n_recommendations : int, optional
-            Nombre de ressources à recommander (défaut : 3).
+            Identifiant de l'étudiant (doit correspondre à un index de
+            la matrice utilisateur-ressource).
+        n_recommendations : int
+            Nombre de ressources à recommander (défaut 3).
 
         Returns
         -------
         Dict[str, Any]
-            Voir _recommend() / _empty_result() pour la structure complète.
-            student_exists=False si l'étudiant n'a aucune ligne dans la
-            matrice (cold start total — comportement attendu, pas un bug).
+            Voir _recommend() / _empty_result() pour la structure
+            exacte selon les cas.
         """
         if self.use_svd:
             return self._recommend(
@@ -283,7 +322,28 @@ class CFEngine:
         feature_matrix: pd.DataFrame,
         raw_matrix: pd.DataFrame,
     ) -> Dict[str, Any]:
-        """Méthode unifiée de recommandation (Raw KNN et SVD-KNN).
+        """
+        Implémentation générique de la recommandation CF, paramétrée
+        par la matrice utilisée pour la recherche de voisins
+        (feature_matrix) et celle utilisée pour le calcul de score
+        (raw_matrix) — permet de partager exactement la même logique
+        entre le mode SVD et le mode raw (voir get_recommendations()).
+
+        Étapes :
+        1. Si student_id absent de feature_matrix.index : retourne un
+           résultat vide avec student_exists=False (pas d'exception,
+           le cold-start utilisateur est un cas géré, pas une erreur).
+        2. Recherche les k plus proches voisins de l'étudiant via KNN
+           (k = n_neighbors + 1 pour inclure puis exclure l'étudiant
+           lui-même, qui sera toujours son propre plus proche voisin à
+           distance 0).
+        3. Filtre les voisins à similarité positive uniquement via
+           _filter_similar_students().
+        4. Si aucun voisin similaire : résultat vide avec
+           student_exists=True (l'étudiant existe mais est isolé dans
+           l'espace des interactions).
+        5. Calcule les recommandations pondérées par similarité via
+           _compute_recommendations().
 
         Parameters
         ----------
@@ -292,17 +352,18 @@ class CFEngine:
         n_recommendations : int
             Nombre de ressources à recommander.
         feature_matrix : pd.DataFrame
-            Matrice utilisée pour le calcul des voisins (espace réduit
-            si SVD, matrice brute sinon).
+            Matrice utilisée pour la recherche KNN (U_reduced_df en
+            mode SVD, matrix brute en mode raw).
         raw_matrix : pd.DataFrame
-            Matrice brute utilisateur-item, utilisée pour le calcul des
-            scores pondérés une fois les voisins identifiés.
+            Matrice utilisée pour le calcul des scores prédits
+            (toujours la matrice brute d'interactions).
 
         Returns
         -------
         Dict[str, Any]
-            Résultat complet (voir get_recommendations) ou résultat vide
-            via _empty_result si l'étudiant est absent ou sans voisin valide.
+            Structure complète : student_id, student_exists, method,
+            similar_students, recommended_resources,
+            num_similar_students, num_recommendations.
         """
         if student_id not in feature_matrix.index:
             return self._empty_result(student_id, exists=False)
@@ -343,22 +404,28 @@ class CFEngine:
     def _filter_similar_students(
         self, indices: np.ndarray, distances: np.ndarray, feature_matrix: pd.DataFrame
     ) -> List[Dict[str, Any]]:
-        """Filtre les voisins avec similarité > 0.
+        """
+        Convertit les distances cosinus brutes retournées par le KNN
+        (distances) en scores de similarité (similarity = 1 - distance),
+        et exclut tout voisin dont la similarité est nulle ou négative
+        (aucune corrélation exploitable pour la recommandation).
 
         Parameters
         ----------
         indices : np.ndarray
-            Indices des voisins retournés par KNN.
+            Indices des voisins retournés par NearestNeighbors.kneighbors().
         distances : np.ndarray
             Distances cosinus correspondantes.
         feature_matrix : pd.DataFrame
-            Matrice utilisée pour résoudre les indices en student_id.
+            Matrice utilisée pour résoudre les indices en student_id
+            via feature_matrix.index.
 
         Returns
         -------
         List[Dict[str, Any]]
-            Liste de voisins valides (similarity_score > 0), avec
-            student_id, distance, similarity_score.
+            Liste de {"student_id": str, "distance": float,
+            "similarity_score": float}, triée dans l'ordre retourné par
+            le KNN (le plus proche voisin en premier).
         """
         similar_students = []
         for idx, dist in zip(indices, distances):
@@ -380,29 +447,41 @@ class CFEngine:
         n_recommendations: int,
         raw_matrix: pd.DataFrame,
     ) -> List[Dict[str, Any]]:
-        """Calcule les scores pondérés des ressources à recommander.
+        """
+        Calcule un score prédit par ressource, agrégé sur les voisins
+        similaires pondérés par leur score de similarité normalisé
+        (les poids somment à 1), puis exclut les ressources déjà
+        consommées par l'étudiant cible (student_rated, score forcé à
+        -inf pour les exclure du top-N sans les retirer du tableau).
 
-        Les scores des voisins sont pondérés par leur similarity_score
-        (normalisé pour sommer à 1), puis sommés par ressource. Les
-        ressources déjà vues par l'étudiant sont exclues (mises à -inf
-        puis filtrées par le test > 0 final).
+        Le score prédit d'une ressource = moyenne pondérée des scores
+        d'interaction de cette ressource chez les voisins similaires,
+        pondération = similarity_score normalisé de chaque voisin.
+
+        Ne renvoie que les ressources à score strictement positif — une
+        ressource jamais interagie par aucun voisin similaire (score
+        agrégé = 0) n'est pas recommandée, même si elle apparaît dans
+        le top-N trié.
 
         Parameters
         ----------
         student_idx : int
-            Index de l'étudiant dans raw_matrix.
+            Position (positionnelle, pas label) de l'étudiant cible
+            dans raw_matrix.
         similar_students : List[Dict[str, Any]]
-            Voisins valides avec leurs similarity_score.
+            Voisins filtrés (voir _filter_similar_students).
         n_recommendations : int
-            Nombre de ressources à retourner.
+            Nombre maximum de ressources à retourner.
         raw_matrix : pd.DataFrame
-            Matrice brute utilisateur-item.
+            Matrice d'interactions brute (toujours la matrice
+            d'origine, pas l'espace réduit SVD).
 
         Returns
         -------
         List[Dict[str, Any]]
-            Ressources recommandées (resource_id, predicted_score), triées
-            par score décroissant, score > 0 uniquement.
+            Liste de {"resource_id": str, "predicted_score": float},
+            triée par score décroissant, plafonnée à n_recommendations,
+            filtrée à score > 0.
         """
         X_raw = raw_matrix.values
         student_vector_raw = X_raw[student_idx]
@@ -436,22 +515,14 @@ class CFEngine:
     def _empty_result(
         self, student_id: str, exists: bool = False, message: str = ""
     ) -> Dict[str, Any]:
-        """Retourne un résultat vide formaté (étudiant non trouvé ou pas de voisins).
-
-        Parameters
-        ----------
-        student_id : str
-            Identifiant de l'étudiant.
-        exists : bool, optional
-            False si l'étudiant n'a aucune ligne dans la matrice (cold
-            start total). True si présent mais sans voisin valide.
-        message : str, optional
-            Message explicatif (ex: "Aucun voisin similaire trouvé").
+        """
+        Retourne une réponse vide structurée pour les cas sans
+        recommandation CF disponible.
 
         Returns
         -------
         Dict[str, Any]
-            Résultat vide, structure identique à get_recommendations.
+            Structure de réponse CF avec listes vides et compteurs à 0.
         """
         return {
             "student_id": student_id,
@@ -465,14 +536,14 @@ class CFEngine:
         }
 
     def get_status(self) -> Dict[str, Any]:
-        """Retourne l'état du moteur CF.
+        """
+        Retourne un instantané de la configuration et de l'état courant
+        du moteur CF.
 
         Returns
         -------
         Dict[str, Any]
-            matrix_shape, svd_enabled, svd_variance_at_k5,
-            svd_variance_threshold, active_method, svd_components,
-            knn_neighbors.
+            Paramètres principaux du moteur CF actif.
         """
         return {
             "matrix_shape": self.matrix.shape,
@@ -485,20 +556,13 @@ class CFEngine:
         }
 
 
-# ============================================
-# SINGLETON
-# ============================================
-
 _cf_engine: Optional[CFEngine] = None
 
 
 def get_cf_engine() -> CFEngine:
-    """Retourne l'instance unique du moteur CF.
-
-    Returns
-    -------
-    CFEngine
-        Instance singleton, créée au premier appel.
+    """
+    Retourne l'instance singleton globale de CFEngine, construite au
+    premier appel puis réutilisée.
     """
     global _cf_engine
     if _cf_engine is None:
@@ -507,31 +571,26 @@ def get_cf_engine() -> CFEngine:
 
 
 def reset_cf_engine() -> None:
-    """
-    Force la réinitialisation du singleton en mémoire.
-
-    Utile en tests ou si tu modifies les données dans le même process
-    sans redémarrer — sinon le singleton garde l'ancien état même si
-    le fichier pickle a été régénéré.
-    """
     global _cf_engine
     _cf_engine = None
 
 
 def get_recommendations(student_id: str, n_recommendations: int = 3) -> Dict[str, Any]:
-    """Fonction de convenance pour obtenir des recommandations.
+    """
+    Fonction de convenance au niveau module : récupère le singleton
+    CFEngine via get_cf_engine() et délègue directement l'appel — évite
+    à l'appelant de gérer explicitement le cycle de vie de l'engine
+    pour un usage simple, hors classe HybridEngine.
 
     Parameters
     ----------
     student_id : str
-        Identifiant de l'étudiant.
-    n_recommendations : int, optional
-        Nombre de ressources à recommander (défaut : 3).
+    n_recommendations : int
 
     Returns
     -------
     Dict[str, Any]
-        Voir CFEngine.get_recommendations.
+        Voir CFEngine.get_recommendations().
     """
     engine = get_cf_engine()
     return engine.get_recommendations(student_id, n_recommendations)

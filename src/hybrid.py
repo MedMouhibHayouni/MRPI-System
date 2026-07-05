@@ -1,54 +1,14 @@
 """
 Hybrid Recommendation Engine.
 
-Combine les scores du moteur CBF (Content-Based Filtering) et du moteur CF
-(Collaborative Filtering) en un score hybride pondéré :
+Combine les scores du moteur CBF et du moteur CF en un score hybride pondéré :
 
-    hybrid_score = 0.6 × CBF_score + 0.4 × CF_score
+    hybrid_score = alpha × CBF_score + (1 - alpha) × CF_score
 
-Les deux scores sont normalisés indépendamment à [0, 1] (min-max) avant fusion
-pour éviter qu'une échelle domine l'autre. Une pénalité (×0.5) est appliquée
-aux ressources CBF issues d'un fallback de type de contenu.
-
-Comportement CF validé (cf. session de debug, vérifié sur données réelles) :
-    - Quand CBF retourne au moins un candidat : CF n'est PAS filtré par
-      matière/difficulté dans la fusion. C'est intentionnel — le CDC décrit
-      le filtrage collaboratif comme devant produire un effet de sérendipité
-      (ressources inattendues mais pertinentes, issues du comportement de
-      pairs similaires). Vérifié concrètement : pour STU-2026-0001, une
-      ressource hors-matière (français) provenait de son voisin le plus
-      proche (même matière/concept/niveau), donc d'un signal réel, pas de
-      bruit.
-    - Quand CBF est vide : CF seul est filtré par matière (garde-fou),
-      car sans CBF il n'y a plus aucune notion de pertinence de contenu
-      pour contrebalancer la sérendipité. Ce filtre est intentionnellement
-      moins strict que la fusion normale — il ne filtre pas la difficulté,
-      seulement la matière.
-
-Pipeline :
-    1. HybridEngine.get_recommendations(request)
-       ├── recommend_cbf(...)      → cbf_df    (DataFrame)
-       ├── cf_engine.get_recommendations(...) → cf_results (List[Dict])
-       └── hybrid_fusion(...)      → List[ResourceRecommendation]
-
-Cas dégradés gérés :
-    - CF vide  → CBF seul
-    - CBF vide → CF seul (filtre matière appliqué, pas de filtre difficulté)
-    - Les deux vides → liste vide
-
-Singleton :
-    get_hybrid_engine() retourne l'instance unique pour éviter
-    de recharger les modèles à chaque requête.
-
-Dépendances :
-    - src/CBF.py             : recommend_cbf, get_or_build_vectorizer
-    - src/CF.py               : get_cf_engine
-    - src/schemas/request.py : RecommendationRequest
-    - src/schemas/response.py: ResourceRecommendation, ResourceType, AcademicLevel
+Le poids CBF par défaut est 0.6 et le poids CF par défaut est 0.4.
 """
 
 import pandas as pd
-import numpy as np
 import os
 import logging
 from typing import List, Dict, Any, Optional
@@ -61,32 +21,17 @@ from src.CBF import recommend_cbf, get_or_build_vectorizer
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ============================================================
-# PATHS
-# ============================================================
-
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 
-# ============================================================
-# CONFIGURATION
-# ============================================================
-
-# alpha=0.6 (CB) / 0.4 (CF) — décision documentée dans le CDC/journal.
 DEFAULT_CBF_WEIGHT = 0.6
 DEFAULT_CF_WEIGHT = 0.4
-
-FALLBACK_PENALTY = 0.5  # pénalité appliquée quand fallback_used=True
-
-# Seuil sous lequel min-max normalization est considérée dégénérée
-# (à 1-2 candidats, min-max n'a pas de sens statistique).
+CF_SCORE_MAX = 5.0
+FALLBACK_PENALTY = 0.8
 MIN_CANDIDATES_FOR_NORM = 3
 
-
-TARGET_RECOMMENDATIONS = (
-    5  # cible — agit actuellement comme un plancher, pas un plafond (point ouvert #2)
-)
+TARGET_RECOMMENDATIONS = 5
 MAX_RECOMMENDATIONS = 20
 
 # ============================================================
@@ -94,32 +39,41 @@ MAX_RECOMMENDATIONS = 20
 # ============================================================
 
 
-def normalize_scores(scores: List[float]) -> List[float]:
-    """Normalise une liste de scores à [0, 1] (min-max par liste).
+def normalize_scores(
+    scores: List[float], max_value: Optional[float] = None
+) -> List[float]:
+    """Normalise une liste de scores à [0, 1].
 
-    Si len(scores) < MIN_CANDIDATES_FOR_NORM, la normalisation min-max
-    est statistiquement dégénérée (ex: 2 scores identiques → tous à 1.0
-    sans signal réel). On le loggue pour que ce ne soit pas silencieux.
+    Si len(scores) >= MIN_CANDIDATES_FOR_NORM (3) : min-max classique sur
+    la liste (comportement inchangé).
 
-    Parameters
-    ----------
-    scores : List[float]
-        Scores bruts à normaliser (cosine similarity pour CBF, score
-        pondéré pour CF).
+    Si len(scores) < MIN_CANDIDATES_FOR_NORM :
+    - max_value fourni (borne théorique connue, ex: CF_SCORE_MAX pour les
+      scores CF bruts) : division par max_value, garantit un résultat
+      dans [0, 1] même sur un seul candidat, sans prétendre à une
+      normalisation statistique qu'un échantillon aussi petit ne permet
+      pas.
+    - max_value=None (scores déjà bornés [0,1] par construction, ex: CBF
+      cosine similarity sur vecteurs non-négatifs) : scores retournés
+      tels quels.
 
-    Returns
-    -------
-    List[float]
-        Scores normalisés dans [0, 1], même ordre que l'entrée.
-        Liste vide si l'entrée est vide.
+    Les scores CF peuvent fournir une borne théorique pour garder le
+    résultat dans l'intervalle attendu même avec très peu de candidats.
     """
     if not scores:
         return []
     if len(scores) < MIN_CANDIDATES_FOR_NORM:
+        if max_value is not None and max_value > 0:
+            logger.info(
+                f"ℹ️ Normalisation sur seulement {len(scores)} candidat(s) — "
+                f"division par borne théorique {max_value}"
+            )
+            return [min(s / max_value, 1.0) for s in scores]
         logger.info(
             f"ℹ️ Normalisation sur seulement {len(scores)} candidat(s) — "
-            f"résultat peu fiable statistiquement"
+            f"scores bruts conservés (déjà bornés par construction)"
         )
+        return scores
     mn, mx = min(scores), max(scores)
     if mx == mn:
         return [1.0] * len(scores)
@@ -127,36 +81,48 @@ def normalize_scores(scores: List[float]) -> List[float]:
 
 
 def apply_fallback_penalty(weight: float, fallback_used: bool) -> float:
-    """Réduit le poids d'une source si elle a utilisé un fallback générique.
+    """
+    Réduit un poids de fusion (cbf_weight typiquement) d'un facteur
+    FALLBACK_PENALTY (0.8) si la ressource concernée est un résultat de
+    repli CBF (fallback_used=True, c'est-à-dire que son type de contenu
+    ne correspond pas au style d'apprentissage demandé). Une ressource
+    non-fallback conserve son poids intact.
 
     Parameters
     ----------
     weight : float
-        Poids initial (avant pénalité).
+        Poids d'origine (avant pénalité).
     fallback_used : bool
-        True si la source a dû recourir à un type de contenu de repli.
+        Si True, applique la pénalité.
 
     Returns
     -------
     float
-        Poids inchangé si fallback_used=False, sinon weight * FALLBACK_PENALTY.
+        Poids ajusté.
     """
     return weight * FALLBACK_PENALTY if fallback_used else weight
 
 
 def get_resource_type(value: str) -> ResourceType:
-    """Convertit une chaîne en ResourceType, avec fallback loggé si inconnu.
+    """
+    Convertit une valeur brute de type de contenu (string, potentiellement
+    mal formée ou absente du catalogue) en enum ResourceType valide.
+
+    Si la conversion échoue (valeur inconnue de l'enum), journalise un
+    avertissement et retombe sur ResourceType("video") comme valeur par
+    défaut plutôt que de laisser une exception remonter et faire échouer
+    toute la génération de recommandations pour une seule ressource mal
+    cataloguée.
 
     Parameters
     ----------
     value : str
-        Valeur brute du champ 'type' (ex: 'video', 'exercise', 'micro_lesson').
+        Type de contenu brut (ex: depuis une colonne CSV).
 
     Returns
     -------
     ResourceType
-        Enum correspondant, ou ResourceType('video') si la valeur est
-        inconnue (avec warning loggé).
+        Enum validé, ou ResourceType.video en repli.
     """
     try:
         return ResourceType(value.lower())
@@ -166,26 +132,37 @@ def get_resource_type(value: str) -> ResourceType:
 
 
 def _resource_metadata(resource_id: str, resources_df: pd.DataFrame) -> Dict[str, Any]:
-    """Récupère les métadonnées d'une ressource depuis le DataFrame déjà chargé.
+    """
+    Récupère les métadonnées d'affichage d'une ressource (title, type,
+    difficulty, subject, estimated_time_min, description) à partir de
+    son resource_id, en cherchant dans le DataFrame déjà chargé en
+    mémoire (pas d'accès disque).
 
-    Remplace toute relecture de CSV : resources_df est chargé une seule fois
-    dans HybridEngine.__init__ (et normalisé en casse à ce moment-là) et
-    propagé partout.
+    Si la ressource n'existe pas dans resources_df (incohérence
+    possible entre le résultat CF/CBF et le catalogue courant), retourne
+    un jeu de métadonnées de repli générique plutôt que de lever une
+    exception — la recommandation reste affichable, avec un titre
+    générique "Resource <id>".
+
+    Le champ description est toujours présent dans le résultat (chaîne
+    vide si absente du DataFrame source), car il alimente
+    adapt_wording()/adapt_wording_batch() en aval — une description
+    manquante ne doit jamais faire planter l'appel LLM, seulement lui
+    donner moins de matière à reformuler.
 
     Parameters
     ----------
     resource_id : str
-        Identifiant de la ressource (ex: 'RES-001').
     resources_df : pd.DataFrame
-        Catalogue complet des ressources, déjà chargé et normalisé.
+        Catalogue complet des ressources.
 
     Returns
     -------
     Dict[str, Any]
-        Métadonnées (title, type, difficulty, subject, estimated_time_min).
-        Valeurs par défaut si resource_id introuvable (ne devrait pas
-        arriver en pratique si resources_df est cohérent avec CF/CBF).
+        {"title", "type", "difficulty", "subject",
+        "estimated_time_min", "description"}.
     """
+
     row = resources_df[resources_df["resource_id"] == resource_id]
     if row.empty:
         return {
@@ -194,6 +171,7 @@ def _resource_metadata(resource_id: str, resources_df: pd.DataFrame) -> Dict[str
             "difficulty": "beginner",
             "subject": None,
             "estimated_time_min": 30,
+            "description": "",
         }
     r = row.iloc[0]
     return {
@@ -202,6 +180,7 @@ def _resource_metadata(resource_id: str, resources_df: pd.DataFrame) -> Dict[str
         "difficulty": r["difficulty"],
         "subject": r.get("subject"),
         "estimated_time_min": r.get("estimated_time_min", 30),
+        "description": r.get("description", "") or "",
     }
 
 
@@ -220,40 +199,68 @@ def hybrid_fusion(
     target_recommendations: int = TARGET_RECOMMENDATIONS,
     max_recommendations: int = MAX_RECOMMENDATIONS,
 ) -> List[ResourceRecommendation]:
-    """Fusionne les résultats CF et CBF en appliquant alpha et la pénalité fallback.
+    """
+    Fusionne les résultats du moteur CF et du moteur CBF en une liste
+    unique de recommandations classées par score hybride, selon
+    Score_hybride = cbf_weight * Score_CB + cf_weight * Score_CF (CDC
+    3.4.4).
 
-    Comportement CF :
-        - Si CBF a au moins un candidat : CF entre dans la fusion SANS
-          filtre matière/difficulté. C'est la sérendipité voulue par le CDC.
-        - Si CBF est vide : CF passe par _convert_cf_to_recommendations,
-          qui filtre par matière (mais pas par difficulté).
+    Trois cas de figure :
+    1. CF et CBF tous deux vides : retourne une liste vide.
+    2. CF vide, CBF non vide : délègue entièrement à
+       _convert_cbf_to_recommendations() (pas de fusion à faire).
+    3. CBF vide, CF non vide : délègue à _convert_cf_to_recommendations(),
+       qui applique un garde-fou matière (les résultats CF ne sont
+       filtrés sur request_subject QUE dans cette branche — dans le cas
+       de fusion normale ci-dessous, CF n'est jamais filtré par matière,
+       volontairement, pour préserver l'effet de sérendipité voulu par
+       le CDC 3.4.4).
+    4. Cas général (les deux non vides) : normalise indépendamment les
+       scores CF et CBF (min-max, voir normalize_scores), fusionne les
+       deux ensembles de résultats par resource_id (une ressource peut
+       apparaître dans les deux, une seule, ou l'autre), calcule un
+       score hybride par ressource :
+       - Présente dans les deux : moyenne pondérée normalisée des deux
+         scores, où le poids CBF est réduit par apply_fallback_penalty
+         si la ressource est un résultat de repli CBF.
+       - Uniquement CF : hybrid_score = cf_score (le poids de fusion
+         n'entre pas en jeu, faute de contrepartie CBF).
+       - Uniquement CBF : hybrid_score = cbf_score, pénalisé par
+         FALLBACK_PENALTY si fallback_used.
+       Trie par hybrid_score décroissant, tronque à
+       max_recommendations, puis construit les objets
+       ResourceRecommendation finaux en récupérant les métadonnées via
+       _resource_metadata() pour CHAQUE ressource (que sa source soit
+       CBF ou CF), garantissant que description (et les autres champs
+       d'affichage) sont toujours peuplés indépendamment de la source.
+
+    Si moins de target_recommendations candidats sont disponibles après
+    fusion, aucune complémentation automatique n'est appliquée.
 
     Parameters
     ----------
     cf_results : List[Dict[str, Any]]
-        Résultats bruts du moteur CF (resource_id, predicted_score).
+        Résultats bruts du CF (voir CFEngine._compute_recommendations).
     cbf_df : pd.DataFrame
-        Résultats bruts du moteur CBF (resource_id, title, type, difficulty,
-        cbf_score, fallback_used).
+        Résultats bruts du CBF (voir recommend_cbf).
     resources_df : pd.DataFrame
-        Catalogue complet des ressources (normalisé en casse).
+        Catalogue complet, pour résoudre les métadonnées manquantes.
     request_subject : Optional[str]
-        Matière demandée par l'apprenant (déjà lowercase via le validator
-        Pydantic). Utilisé uniquement dans le cas CBF vide.
+        Matière de la requête, utilisée uniquement comme garde-fou
+        quand CBF est vide et CF seul doit être servi.
     cf_weight, cbf_weight : float
-        Poids de base avant pénalité fallback (défauts : 0.4 / 0.6).
+        Poids de fusion (1 - alpha et alpha respectivement, CDC 3.4.4).
     target_recommendations : int
-        Cible de résultats — agit actuellement comme plancher (point ouvert #2).
+        Cible indicative (CDC : minimum 5), non garantie.
     max_recommendations : int
-        Plafond dur du nombre de résultats retournés.
+        Plafond dur du nombre de résultats retournés (CDC : maximum 20).
 
     Returns
     -------
     List[ResourceRecommendation]
-        Liste triée par hybrid_score décroissant. Vide si CF et CBF sont
-        tous deux vides.
+        Liste triée par pertinence décroissante, taille entre 0 et
+        max_recommendations.
     """
-
     cf_empty = not cf_results
     cbf_empty = cbf_df.empty
 
@@ -263,7 +270,9 @@ def hybrid_fusion(
 
     if cf_empty and not cbf_empty:
         logger.info("⚠️ CF vide → CBF seul")
-        return _convert_cbf_to_recommendations(cbf_df, max_recommendations)
+        return _convert_cbf_to_recommendations(
+            cbf_df, resources_df, max_recommendations
+        )
 
     if not cf_empty and cbf_empty:
         logger.info("⚠️ CBF vide → CF seul (garde-fou matière appliqué)")
@@ -279,14 +288,12 @@ def hybrid_fusion(
             "⚠️ Colonne 'fallback_used' absente de cbf_df — pénalité fallback désactivée"
         )
 
-    # CF n'est PAS filtré par matière/difficulté ici — voir docstring + note
-    # de module en haut du fichier. Comportement validé, intentionnel.
-    cf_scores_norm = normalize_scores([r["predicted_score"] for r in cf_results])
+    cf_scores_norm = normalize_scores(
+        [r["predicted_score"] for r in cf_results], max_value=CF_SCORE_MAX
+    )
     cbf_scores_norm = normalize_scores(cbf_df["cbf_score"].tolist())
-
     merged: Dict[str, Dict[str, Any]] = {}
 
-    # Résultats CF
     for i, result in enumerate(cf_results):
         if i >= len(cf_scores_norm):
             break
@@ -301,7 +308,6 @@ def hybrid_fusion(
             "cbf_data": None,
         }
 
-    # Résultats CBF
     for idx in range(len(cbf_df)):
         if idx >= len(cbf_scores_norm):
             break
@@ -326,8 +332,6 @@ def hybrid_fusion(
                 "cbf_data": row,
             }
 
-    # Scores hybrides — pénalité appliquée PAR ITEM (dépend de la ressource
-    # CBF spécifique, pas de l'étudiant globalement).
     for res_id, data in merged.items():
         if data["has_cf"] and data["has_cbf"]:
             effective_cbf_weight = apply_fallback_penalty(
@@ -348,7 +352,6 @@ def hybrid_fusion(
             data["hybrid_score"] = data["cf_score"]
 
         else:
-            # CBF seul présent pour cet item : fallback générique = signal plus faible
             penalty = FALLBACK_PENALTY if data["fallback_used"] else 1.0
             data["hybrid_score"] = data["cbf_score"] * penalty
 
@@ -356,9 +359,7 @@ def hybrid_fusion(
         merged.values(), key=lambda x: x["hybrid_score"], reverse=True
     )
 
-    num_recommendations = max(
-        target_recommendations, min(max_recommendations, len(sorted_items))
-    )
+    num_recommendations = min(max_recommendations, len(sorted_items))
     if len(sorted_items) < target_recommendations:
         logger.info(
             f"ℹ️ Seulement {len(sorted_items)} candidats disponibles "
@@ -368,6 +369,8 @@ def hybrid_fusion(
     recommendations = []
     for item in sorted_items[:num_recommendations]:
         try:
+            meta = _resource_metadata(item["resource_id"], resources_df)
+
             if item["has_cbf"] and item["cbf_data"] is not None:
                 row = item["cbf_data"]
                 recommendations.append(
@@ -378,10 +381,10 @@ def hybrid_fusion(
                         relevance_score=item["hybrid_score"],
                         difficulty=AcademicLevel(row["difficulty"]),
                         estimated_time_min=row.get("estimated_time_min", 30),
+                        description=meta["description"],
                     )
                 )
             elif item["has_cf"] and item["cf_data"] is not None:
-                meta = _resource_metadata(item["resource_id"], resources_df)
                 recommendations.append(
                     ResourceRecommendation(
                         resource_id=item["resource_id"],
@@ -390,6 +393,7 @@ def hybrid_fusion(
                         relevance_score=item["hybrid_score"],
                         difficulty=AcademicLevel(meta["difficulty"]),
                         estimated_time_min=meta["estimated_time_min"],
+                        description=meta["description"],
                     )
                 )
         except Exception as e:
@@ -401,21 +405,29 @@ def hybrid_fusion(
 
 
 def _convert_cbf_to_recommendations(
-    cbf_df: pd.DataFrame, max_recommendations: int
+    cbf_df: pd.DataFrame, resources_df: pd.DataFrame, max_recommendations: int
 ) -> List[ResourceRecommendation]:
-    """Convertit les résultats CBF seuls (CF vide) en ResourceRecommendation.
+    """
+    Convertit des résultats CBF seuls (cas où le CF n'a rien produit,
+    typiquement un étudiant en cold-start CF) en objets
+    ResourceRecommendation, en normalisant les scores CBF sur le
+    sous-ensemble effectivement retourné (top_n premiers, pas
+    l'ensemble du DataFrame cbf_df).
 
     Parameters
     ----------
     cbf_df : pd.DataFrame
-        Résultats CBF (déjà triés par cbf_score décroissant en amont).
+        Résultats CBF (voir recommend_cbf), déjà triés par cbf_score
+        décroissant.
+    resources_df : pd.DataFrame
+        Catalogue complet, pour les métadonnées d'affichage.
     max_recommendations : int
-        Nombre maximum de résultats à retourner.
+        Plafond de résultats à convertir.
 
     Returns
     -------
     List[ResourceRecommendation]
-        Liste convertie, scores renormalisés à [0, 1] sur ce sous-ensemble.
+        Liste triée par relevance_score décroissant.
     """
     recommendations = []
     top_n = min(max_recommendations, len(cbf_df))
@@ -425,6 +437,7 @@ def _convert_cbf_to_recommendations(
     for idx, score in zip(range(top_n), scores_norm):
         row = cbf_df.iloc[idx]
         try:
+            meta = _resource_metadata(row["resource_id"], resources_df)
             recommendations.append(
                 ResourceRecommendation(
                     resource_id=row["resource_id"],
@@ -433,6 +446,7 @@ def _convert_cbf_to_recommendations(
                     relevance_score=score,
                     difficulty=AcademicLevel(row["difficulty"]),
                     estimated_time_min=row.get("estimated_time_min", 30),
+                    description=meta["description"],
                 )
             )
         except Exception as e:
@@ -448,29 +462,40 @@ def _convert_cf_to_recommendations(
     request_subject: Optional[str],
     max_recommendations: int,
 ) -> List[ResourceRecommendation]:
-    """Convertit les résultats CF seuls (CBF vide) en ResourceRecommendation.
+    """
+    Convertit des résultats CF seuls (cas où le CBF n'a rien produit —
+    ex: aucune ressource éligible après filtrage prérequis/déjà-vues)
+    en objets ResourceRecommendation, en appliquant un garde-fou matière
+    optionnel.
 
-    Garde-fou matière : sans CBF, il n'y a plus de signal de contenu pour
-    contrebalancer la sérendipité de CF. On filtre par matière avant de
-    classer ; si le filtre vide tout, fallback total + warning.
+    Si request_subject est fourni : ne conserve que les résultats CF
+    dont la matière (résolue via _resource_metadata) correspond
+    exactement à request_subject. Si ce filtrage ne laisse aucun
+    résultat, retombe sur l'ensemble non filtré des résultats CF (avec
+    avertissement journalisé — les recommandations peuvent alors être
+    hors-sujet, mais on préfère ça à une liste vide).
+
+    Si request_subject n'est pas fourni : le garde-fou est
+    explicitement désactivé (filtered reste vide dès le départ), donc
+    le pool CF non filtré est utilisé directement.
 
     Parameters
     ----------
     cf_results : List[Dict[str, Any]]
-        Résultats bruts du moteur CF.
+        Résultats bruts du CF.
     resources_df : pd.DataFrame
-        Catalogue des ressources, pour récupérer la matière de chaque candidat.
+        Catalogue complet.
     request_subject : Optional[str]
-        Matière demandée (lowercase). Si None, le garde-fou est désactivé
-        (warning loggé).
+        Matière à privilégier, ou None pour désactiver le filtrage.
     max_recommendations : int
-        Nombre maximum de résultats à retourner.
+        Plafond de résultats.
 
     Returns
     -------
     List[ResourceRecommendation]
-        Liste filtrée (ou non filtrée si le filtre vide tout le pool).
+        Liste triée par relevance_score décroissant.
     """
+
     if request_subject:
         filtered = [
             r
@@ -506,6 +531,7 @@ def _convert_cf_to_recommendations(
                 relevance_score=score,
                 difficulty=AcademicLevel(meta["difficulty"]),
                 estimated_time_min=meta["estimated_time_min"],
+                description=meta["description"],
             )
         )
 
@@ -519,43 +545,24 @@ def _convert_cf_to_recommendations(
 
 class HybridEngine:
     """
-    Moteur de recommandation hybride (CBF + CF).
+    Initialise le moteur hybride : charge le catalogue complet des
+    ressources depuis resources.csv, normalise la casse des colonnes
+    subject et concept (strip + lowercase) pour garantir une
+    correspondance fiable avec le profil apprenant (qui peut arriver
+    avec une casse différente), puis construit/charge le vectorizer
+    CBF (encoder, matrice pondérée, weight_vector) et le moteur CF
+    via leurs fonctions get_or_build respectives.
 
-    Charge en mémoire au démarrage :
-        - resources.csv      : catalogue complet des ressources (normalisé
-          en casse : subject et concept passés en lowercase pour matcher
-          le contrat imposé par RecommendationRequest.strip_strings)
-        - encoder CBF         : via get_or_build_vectorizer(self.resources_df),
-          garantit que l'encodeur est entraîné sur les données normalisées
-        - modèle CF           : via get_cf_engine()
-
-    Point d'entrée : get_recommendations(request) → List[ResourceRecommendation]
+    weight_vector est récupéré ici une seule fois par instance et
+    propagé à chaque appel de recommend_cbf() dans
+    get_recommendations(), pour éviter de le recalculer à chaque
+    requête (voir CBF.py).
     """
 
     def __init__(self):
-        """
-        Initialise le moteur hybride en chargeant les trois composants.
-
-        Important : resources_df est normalisé en casse (subject, concept
-        en lowercase) AVANT d'être passé à get_or_build_vectorizer, pour que
-        l'encodeur soit entraîné sur les mêmes valeurs que celles produites
-        par RecommendationRequest (dont le validator lowercase déjà subject
-        et weak_concept). difficulty, type et learning_style n'ont pas
-        besoin de cette normalisation : ce sont soit des Enums contraints
-        à un vocabulaire fixe (AcademicLevel, LearningStyle), soit déjà
-        cohérents en casse dans resources.csv (vérifié empiriquement).
-
-        Raises
-        ------
-        FileNotFoundError
-            Ne devrait plus se produire en pratique : get_or_build_vectorizer
-            reconstruit automatiquement si le cache est absent ou périmé.
-        """
         self.resources_df = pd.read_csv(
             os.path.join(DATA_DIR, "resources.csv"), quotechar='"'
         )
-        # Normalisation canonique — doit matcher le contrat déjà imposé par
-        # RecommendationRequest.strip_strings (subject/weak_concept en lowercase).
         self.resources_df["subject"] = (
             self.resources_df["subject"].str.strip().str.lower()
         )
@@ -563,9 +570,12 @@ class HybridEngine:
             self.resources_df["concept"].str.strip().str.lower()
         )
 
-        self.cbf_encoder, self.cbf_matrix, _ = get_or_build_vectorizer(
-            self.resources_df
-        )
+        (
+            self.cbf_encoder,
+            self.cbf_matrix,
+            _,
+            self.cbf_weight_vector,
+        ) = get_or_build_vectorizer(self.resources_df)
         self.cf_engine = get_cf_engine()
         logger.info(
             f"✅ HybridEngine initialisé avec {len(self.resources_df)} ressources"
@@ -574,34 +584,45 @@ class HybridEngine:
     def get_recommendations(
         self,
         request: RecommendationRequest,
-        cf_weight: float = DEFAULT_CF_WEIGHT,
-        cbf_weight: float = DEFAULT_CBF_WEIGHT,
+        cf_weight: Optional[float] = None,
+        cbf_weight: Optional[float] = None,
         top_n: int = MAX_RECOMMENDATIONS,
     ) -> List[ResourceRecommendation]:
         """
-        Génère les recommandations hybrides pour un apprenant.
+        Point d'entrée principal : génère les recommandations hybrides
+        complètes pour un profil apprenant (appelé depuis main.py via
+        ml_executor, hors event loop async — c'est un appel CPU-bound
+        synchrone).
 
-        Appelle successivement CBF et CF, puis fusionne leurs résultats
-        via hybrid_fusion() avec pondération alpha.
+        cf_weight / cbf_weight, si non fournis explicitement, retombent
+        sur les constantes DEFAULT_CF_WEIGHT (0.4) / DEFAULT_CBF_WEIGHT
+        (0.6) — CDC 3.4.4, alpha = 0.6 par défaut.
+
+        Pipeline : appelle recommend_cbf() (CBF), puis
+        self.cf_engine.get_recommendations() (CF), puis fusionne les
+        deux via hybrid_fusion().
 
         Parameters
         ----------
         request : RecommendationRequest
-            Profil apprenant validé par Pydantic.
-        cf_weight : float, optional
-            Poids du score CF dans la fusion (défaut : 0.4).
-        cbf_weight : float, optional
-            Poids du score CBF dans la fusion (défaut : 0.6).
-        top_n : int, optional
-            Nombre maximum de recommandations à retourner (défaut : 20).
+            Profil apprenant validé.
+        cf_weight, cbf_weight : Optional[float]
+            Poids de fusion explicites, prioritaires sur les défauts
+            CDC s'ils sont fournis par l'appelant direct (pas par le
+            client API — voir avertissement ci-dessus).
+        top_n : int
+            Nombre maximum de recommandations (CDC : max 20).
 
         Returns
         -------
         List[ResourceRecommendation]
-            Liste ordonnée par hybrid_score décroissant.
-            Liste vide si aucune ressource ne passe les filtres.
+            Recommandations finales triées, éventuellement vide.
         """
-        logger.info(f"🔍 Génération pour {request.student_id}")
+        if cbf_weight is None:
+            cbf_weight = DEFAULT_CBF_WEIGHT
+        if cf_weight is None:
+            cf_weight = DEFAULT_CF_WEIGHT
+        logger.info(f"🔍 Génération pour {request.student_id} (alpha={cbf_weight})")
 
         logger.info("  → CBF Engine...")
         cbf_df = recommend_cbf(
@@ -609,6 +630,7 @@ class HybridEngine:
             resources_df=self.resources_df,
             encoder=self.cbf_encoder,
             resource_matrix=self.cbf_matrix,
+            weight_vector=self.cbf_weight_vector,
             top_n=top_n,
         )
         logger.info(f"    CBF: {len(cbf_df)} recommandations")
@@ -638,12 +660,14 @@ class HybridEngine:
 
     def get_status(self) -> Dict[str, Any]:
         """
-        Retourne un snapshot de la configuration active du moteur.
+        Retourne un instantané de configuration du moteur hybride
+        (nombre de ressources, statut du sous-moteur CF, cibles et
+        poids par défaut) — diagnostic/monitoring uniquement.
 
         Returns
         -------
         Dict[str, Any]
-            Clés : resources_count, cf_status, target_recommendations,
+            resources_count, cf_status, target_recommendations,
             max_recommendations, cf_weight, cbf_weight.
         """
         return {
@@ -656,24 +680,21 @@ class HybridEngine:
         }
 
 
-# ============================================================
-# SINGLETON
-# ============================================================
-
 _hybrid_engine: Optional[HybridEngine] = None
 
 
 def get_hybrid_engine() -> HybridEngine:
     """
-    Retourne l'instance singleton du HybridEngine.
-
-    Crée l'instance au premier appel (chargement des modèles),
-    puis retourne la même instance pour tous les appels suivants.
+    Retourne l'instance singleton globale de HybridEngine, construite
+    paresseusement au premier appel — évite de recharger le catalogue
+    de ressources et de reconstruire/recharger CBF+CF à chaque requête
+    /recommendations.
 
     Returns
     -------
     HybridEngine
-        Instance unique partagée dans le process.
+        Instance partagée à l'échelle du process (instanciée une seule
+        fois au démarrage de main.py via `engine = get_hybrid_engine()`).
     """
     global _hybrid_engine
     if _hybrid_engine is None:

@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, StringConstraints
 from typing import List, Optional
 from enum import Enum
 import re
+from typing import Annotated
 
 
 class AcademicLevel(str, Enum):
@@ -19,11 +20,13 @@ class LearningStyle(str, Enum):
 
 class RecommendationRequest(BaseModel):
     student_id: str
-    subject: str
-    weak_concept: str
+    subject: Annotated[str, StringConstraints(max_length=100)]
+    weak_concept: Annotated[str, StringConstraints(max_length=100)]
     academic_level: AcademicLevel
     learning_style: LearningStyle
-    past_interactions: Optional[List[str]] = Field(default_factory=list)
+    past_interactions: Optional[
+        List[Annotated[str, StringConstraints(max_length=20)]]
+    ] = Field(default_factory=list, max_length=500)
 
     @field_validator("student_id")
     @classmethod
@@ -36,4 +39,12 @@ class RecommendationRequest(BaseModel):
     @classmethod
     def strip_strings(cls, v):
         return v.strip().lower()
- 
+
+    @field_validator("past_interactions", mode="before")
+    @classmethod
+    def parse_interactions(cls, v):
+        if isinstance(v, list):
+            return v
+        if v is None or (isinstance(v, str) and v.strip() == ""):
+            return []
+        return [r.strip() for r in str(v).split(";") if r.strip()]
