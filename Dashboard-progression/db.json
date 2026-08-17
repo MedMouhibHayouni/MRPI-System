@@ -1,0 +1,32 @@
+{
+  "student": {
+    "id": "STU-2026-0042",
+    "name": "Emna Harhouri",
+    "level": 12,
+    "avatar_url": "",
+    "total_xp": 3420,
+    "badges": [
+      { "id": "streak-7", "label": "Série de 7 jours", "icon": "flame" },
+      { "id": "top-math", "label": "Champion en Mathématiques", "icon": "award" },
+      { "id": "first-quiz", "label": "Premier quiz réussi", "icon": "medal" },
+      { "id": "five-stars", "label": "5 missions parfaites", "icon": "star" }
+    ]
+  },
+  "progress": {
+    "student_id": "STU-2026-0042",
+    "subject_mastery": [
+      { "subject": "Mathematiques", "xp": 340, "xp_next": 500, "percentage": 0.68 },
+      { "subject": "Physique", "xp": 210, "xp_next": 300, "percentage": 0.7 },
+      { "subject": "Informatique", "xp": 480, "xp_next": 600, "percentage": 0.8 },
+      { "subject": "Chimie", "xp": 120, "xp_next": 400, "percentage": 0.3 },
+      { "subject": "Francais", "xp": 260, "xp_next": 400, "percentage": 0.65 }
+    ],
+    "weekly_missions": [
+      { "id": "M-001", "title": "Compléter 3 exercices sur les dérivées", "status": "in_progress", "deadline": "2026-07-29" },
+      { "id": "M-002", "title": "Regarder la vidéo sur les intégrales", "status": "not_started", "deadline": "2026-07-31" },
+      { "id": "M-003", "title": "Quiz : lois de Newton", "status": "completed", "deadline": "2026-07-26" },
+      { "id": "M-004", "title": "Implémenter un tri à bulles en Python", "status": "not_started", "deadline": "2026-08-01" },
+      { "id": "M-005", "title": "Résumé chapitre : équilibre chimique", "status": "in_progress", "deadline": "2026-07-30" }
+    ]
+  }
+}

@@ -1,0 +1,31 @@
+<div class="animate-float-in">
+  <div class="mb-1.5 flex items-center justify-between gap-2 text-sm">
+    <span class="flex min-w-0 items-center gap-2">
+      <span class="font-medium text-foreground truncate">{{ item().subject }}</span>
+      <span
+        class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+        [class]="levelClass()"
+      >
+        {{ level() }}
+      </span>
+    </span>
+    <span class="shrink-0 tabular-nums text-muted-foreground">
+      {{ item().xp }} / {{ item().xp_next }} XP
+    </span>
+  </div>
+  <div
+    class="relative h-3 w-full overflow-hidden rounded-full bg-muted"
+    role="progressbar"
+    [attr.aria-valuenow]="pct()"
+    aria-valuemin="0"
+    aria-valuemax="100"
+    [attr.aria-label]="item().subject + ' : ' + pct() + '% de maîtrise'"
+  >
+    <div
+      class="h-full rounded-full bg-gradient-xp shadow-xp transition-smooth animate-xp-shimmer"
+      [style.width.%]="pct()"
+      style="background-image: linear-gradient(90deg, var(--primary) 0%, var(--primary-glow) 50%, var(--xp) 100%);"
+    ></div>
+  </div>
+  <div class="mt-1 text-right text-xs font-semibold text-primary">{{ pct() }}%</div>
+</div>

@@ -1,0 +1,32 @@
+env/
+.env
+
+# --- Environnements virtuels ---
+venv/
+.venv/
+
+# --- Python cache / bytecode ---
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.benchmarks/
+
+# --- Couverture de tests ---
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# --- Artefacts de modèles (régénérables depuis data/) ---
+models/*.pkl
+models/llm_cache.json
+
+# --- Résultats de benchmarks Locust (sorties de run, pas du code) ---
+results_*.csv
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

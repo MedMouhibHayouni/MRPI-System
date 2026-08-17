@@ -1,0 +1,37 @@
+<header class="relative overflow-hidden rounded-3xl bg-gradient-hero p-6 sm:p-8 text-primary-foreground shadow-glow animate-float-in">
+  <div
+    class="absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_20%_20%,white_1px,transparent_1px)] [background-size:24px_24px]"
+    aria-hidden="true"
+  ></div>
+  <!-- Contrast scrim: guarantees 4.5:1 for white text against the lighter end of the hero gradient (4.3.4) -->
+  <div class="absolute inset-0 bg-black/25" aria-hidden="true"></div>
+  <div class="relative flex flex-wrap items-center gap-4 @container">
+    <div class="flex min-w-0 flex-1 items-center gap-4">
+      <div class="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-white/20 font-display text-xl font-bold ring-4 ring-white/30">
+        {{ initials() }}
+      </div>
+      <div class="min-w-0">
+        <p class="text-xs uppercase tracking-widest opacity-80">Bienvenue,</p>
+        <h1 class="truncate text-2xl sm:text-3xl font-bold">{{ student().name }}</h1>
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          <span class="inline-flex items-center rounded-md border-0 bg-white/20 px-2 py-0.5 text-xs backdrop-blur">
+            <lucide-icon name="sparkles" class="mr-1 h-3 w-3" aria-hidden="true"></lucide-icon>
+            Niveau {{ student().level }}
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="flex w-full shrink-0 gap-3 @[22rem]:w-auto">
+      <div class="flex-1 rounded-2xl bg-white/15 px-4 py-3 backdrop-blur @[22rem]:flex-none">
+        <div class="flex items-center gap-1.5 text-xs opacity-80">
+          <lucide-icon name="trophy" class="h-4 w-4" aria-hidden="true"></lucide-icon>
+          XP total
+        </div>
+        <div class="mt-0.5 font-display text-xl font-bold">{{ formattedXp() }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="relative mt-4">
+    <app-student-badges [badges]="student().badges ?? []" />
+  </div>
+</header>

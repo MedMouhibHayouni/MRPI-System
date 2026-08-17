@@ -1,0 +1,49 @@
+<div class="@container bg-gradient-card shadow-elegant rounded-2xl border p-5">
+  <div class="pb-3">
+    <div class="flex flex-col gap-3 @lg:flex-row @lg:flex-wrap @lg:items-center @lg:justify-between">
+      <div class="min-w-0">
+        <h2 class="flex items-center gap-2 font-display text-lg font-semibold">
+          <lucide-icon name="sparkles" class="h-5 w-5 text-primary" aria-hidden="true"></lucide-icon>
+          Recommandations pour toi
+        </h2>
+        @if (explanation()) {
+          <p class="mt-1 text-sm text-muted-foreground">{{ explanation() }}</p>
+        }
+      </div>
+      <div class="flex flex-col gap-2 @sm:flex-row @lg:shrink-0">
+        <select
+          class="h-9 w-full @sm:w-[140px] rounded-md border border-input bg-background px-2 text-sm"
+          aria-label="Filtrer par type"
+          [ngModel]="filter()"
+          (ngModelChange)="onFilterChange($event)"
+        >
+          <option value="all">Tous les types</option>
+          <option value="exercise">Exercices</option>
+          <option value="lesson">Micro-leçons</option>
+          <option value="video">Vidéos</option>
+        </select>
+        <select
+          class="h-9 w-full @sm:w-[140px] rounded-md border border-input bg-background px-2 text-sm"
+          aria-label="Trier"
+          [ngModel]="sort()"
+          (ngModelChange)="onSortChange($event)"
+        >
+          <option value="score">Pertinence</option>
+          <option value="duration">Durée</option>
+        </select>
+      </div>
+    </div>
+  </div>
+  <div class="h-[60vh] max-h-[560px] min-h-[280px] overflow-y-auto pr-3">
+    <div class="grid gap-3 @lg:grid-cols-2">
+      @for (r of items(); track r.resource_id) {
+        <app-recommendation-card [rec]="r" />
+      }
+      @if (items().length === 0) {
+        <p class="col-span-full py-10 text-center text-sm text-muted-foreground">
+          Aucune recommandation pour ce filtre.
+        </p>
+      }
+    </div>
+  </div>
+</div>

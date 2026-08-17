@@ -1,0 +1,16 @@
+<div class="bg-gradient-card shadow-elegant rounded-2xl border p-5">
+  <div class="pb-3">
+    <h2 class="flex items-center gap-2 font-display text-lg font-semibold">
+      <lucide-icon name="target" class="h-5 w-5 text-primary" aria-hidden="true"></lucide-icon>
+      Maîtrise par matière
+    </h2>
+    <p class="text-sm text-muted-foreground">
+      Moyenne globale : <span class="font-semibold text-foreground">{{ avg() }}%</span>
+    </p>
+  </div>
+  <div class="space-y-5">
+    @for (s of items(); track s.subject) {
+      <app-xp-progress-bar [item]="s" />
+    }
+  </div>
+</div>

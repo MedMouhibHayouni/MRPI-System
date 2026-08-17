@@ -1,0 +1,177 @@
+@if (isLoading() || hasError()) {
+  <div
+    class="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-10"
+    aria-busy="true"
+    aria-live="polite"
+  >
+    <span class="sr-only">Chargement du tableau de bord…</span>
+
+    <!-- student-id selector skeleton -->
+    <div class="h-10 w-full max-w-md animate-pulse rounded-xl bg-muted-foreground/25"></div>
+
+    <!-- header skeleton -->
+    <div class="flex animate-pulse items-center gap-4 rounded-2xl border p-4">
+      <div class="h-14 w-14 rounded-full bg-muted-foreground/25"></div>
+      <div class="flex-1 space-y-2">
+        <div class="h-4 w-1/3 rounded bg-muted-foreground/25"></div>
+        <div class="h-3 w-1/4 rounded bg-muted-foreground/25"></div>
+      </div>
+    </div>
+
+    <!-- panels skeleton: 1 col mobile / 2 col tablet / 3 col desktop, mirrors the real layout -->
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-[320px_minmax(0,1fr)_340px]">
+      <div class="animate-pulse space-y-3 rounded-2xl border p-4">
+        <div class="h-4 w-1/2 rounded bg-muted-foreground/25"></div>
+        <div class="h-3 w-full rounded bg-muted-foreground/25"></div>
+        <div class="h-3 w-full rounded bg-muted-foreground/25"></div>
+        <div class="h-3 w-2/3 rounded bg-muted-foreground/25"></div>
+      </div>
+      <div class="animate-pulse space-y-3 rounded-2xl border p-4">
+        <div class="h-4 w-1/2 rounded bg-muted-foreground/25"></div>
+        <div class="h-20 w-full rounded bg-muted-foreground/25"></div>
+        <div class="h-3 w-full rounded bg-muted-foreground/25"></div>
+        <div class="h-3 w-2/3 rounded bg-muted-foreground/25"></div>
+      </div>
+      <div class="hidden animate-pulse space-y-3 rounded-2xl border p-4 xl:block">
+        <div class="h-4 w-1/2 rounded bg-muted-foreground/25"></div>
+        <div class="h-3 w-full rounded bg-muted-foreground/25"></div>
+        <div class="h-3 w-full rounded bg-muted-foreground/25"></div>
+        <div class="h-3 w-2/3 rounded bg-muted-foreground/25"></div>
+      </div>
+    </div>
+  </div>
+} @else {
+  <div class="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
+    <!-- Real student_id selector: drives the live POST /recommendations call against the
+         FastAPI backend. Independent from the (mocked) identity shown in app-student-header. -->
+    <div
+      class="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/40 px-4 py-2.5 text-sm"
+    >
+      <label for="student-id-select" class="font-medium text-muted-foreground"
+        >Élève (données réelles) :</label
+      >
+      <select
+        id="student-id-select"
+        class="rounded-md border bg-background px-2 py-1"
+        [value]="selectedStudentId() ?? ''"
+        (change)="onStudentIdChange($any($event.target).value)"
+      >
+        @for (p of profiles(); track p.student_id) {
+          <option [value]="p.student_id">
+            {{ p.student_id }} — {{ p.subject }} / {{ p.weak_concept }}
+          </option>
+        }
+      </select>
+    </div>
+
+    <app-student-header [student]="student()!" />
+
+    <!-- Mobile: tabs -->
+    <div class="md:hidden">
+      <div
+        class="grid w-full grid-cols-3 rounded-md bg-muted p-1 text-sm"
+        role="tablist"
+        aria-label="Sections du tableau de bord"
+        tabindex="-1"
+        (keydown)="onTabKeydown($event)"
+      >
+        <button
+          #tabRecs
+          type="button"
+          role="tab"
+          id="tab-recs"
+          aria-controls="panel-recs"
+          [attr.aria-selected]="activeTab() === 'recs'"
+          [attr.tabindex]="activeTab() === 'recs' ? 0 : -1"
+          class="rounded-sm py-1.5"
+          [class.bg-background]="activeTab() === 'recs'"
+          [class.shadow-sm]="activeTab() === 'recs'"
+          (click)="setTab('recs')"
+        >
+          Reco.
+        </button>
+        <button
+          #tabProgress
+          type="button"
+          role="tab"
+          id="tab-progress"
+          aria-controls="panel-progress"
+          [attr.aria-selected]="activeTab() === 'progress'"
+          [attr.tabindex]="activeTab() === 'progress' ? 0 : -1"
+          class="rounded-sm py-1.5"
+          [class.bg-background]="activeTab() === 'progress'"
+          [class.shadow-sm]="activeTab() === 'progress'"
+          (click)="setTab('progress')"
+        >
+          Progrès
+        </button>
+        <button
+          #tabMissions
+          type="button"
+          role="tab"
+          id="tab-missions"
+          aria-controls="panel-missions"
+          [attr.aria-selected]="activeTab() === 'missions'"
+          [attr.tabindex]="activeTab() === 'missions' ? 0 : -1"
+          class="rounded-sm py-1.5"
+          [class.bg-background]="activeTab() === 'missions'"
+          [class.shadow-sm]="activeTab() === 'missions'"
+          (click)="setTab('missions')"
+        >
+          Missions
+        </button>
+      </div>
+
+      @if (activeTab() === 'recs') {
+        <div class="mt-4" id="panel-recs" role="tabpanel" aria-labelledby="tab-recs" tabindex="0">
+          <app-recommendation-list
+            [recommendations]="recs()!.recommendations"
+            [explanation]="recs()!.llm_explanation"
+          />
+        </div>
+      } @else if (activeTab() === 'progress') {
+        <div
+          class="mt-4"
+          id="panel-progress"
+          role="tabpanel"
+          aria-labelledby="tab-progress"
+          tabindex="0"
+        >
+          <app-subject-mastery-panel [items]="progress()!.subject_mastery" />
+        </div>
+      } @else {
+        <div
+          class="mt-4"
+          id="panel-missions"
+          role="tabpanel"
+          aria-labelledby="tab-missions"
+          tabindex="0"
+        >
+          <app-weekly-mission-list [missions]="progress()!.weekly_missions" />
+        </div>
+      }
+    </div>
+
+    <!-- Tablet: 2 columns (768px - 1279px per 4.3.3) -->
+    <div class="hidden md:grid md:grid-cols-2 md:gap-6 xl:hidden">
+      <app-subject-mastery-panel [items]="progress()!.subject_mastery" />
+      <app-recommendation-list
+        [recommendations]="recs()!.recommendations"
+        [explanation]="recs()!.llm_explanation"
+      />
+      <div class="md:col-span-2">
+        <app-weekly-mission-list [missions]="progress()!.weekly_missions" />
+      </div>
+    </div>
+
+    <!-- Desktop: 3 columns (1280px+ per 4.3.3) -->
+    <div class="hidden gap-6 xl:grid xl:grid-cols-[320px_minmax(0,1fr)_340px]">
+      <app-subject-mastery-panel [items]="progress()!.subject_mastery" />
+      <app-recommendation-list
+        [recommendations]="recs()!.recommendations"
+        [explanation]="recs()!.llm_explanation"
+      />
+      <app-weekly-mission-list [missions]="progress()!.weekly_missions" />
+    </div>
+  </div>
+}

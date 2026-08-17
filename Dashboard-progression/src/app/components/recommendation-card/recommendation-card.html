@@ -1,0 +1,56 @@
+<div
+  class="group animate-float-in rounded-2xl border bg-card p-4 transition-smooth hover:-translate-y-0.5 hover:shadow-glow"
+>
+  <div class="flex items-start gap-3">
+    <div class="grid h-11 w-11 shrink-0 place-items-center rounded-xl" [ngClass]="typeMeta().cls">
+      <lucide-icon [name]="typeMeta().icon" class="h-5 w-5" aria-hidden="true"></lucide-icon>
+    </div>
+    <div class="min-w-0 flex-1">
+      <div class="flex items-center gap-2">
+        <span
+          class="inline-flex h-5 items-center rounded-md border px-1.5 text-xs"
+          [ngClass]="diffMeta().cls"
+        >
+          {{ diffMeta().label }}
+        </span>
+      </div>
+      <h3 class="mt-1 line-clamp-2 font-semibold text-foreground">{{ rec().title }}</h3>
+      <div class="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+        <span class="inline-flex items-center gap-1">
+          <lucide-icon name="clock" class="h-3 w-3" aria-hidden="true"></lucide-icon>
+          {{ rec().estimated_time_min }} min
+        </span>
+        <span>{{ typeMeta().label }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4">
+    <div class="mb-1 flex items-center justify-between text-xs">
+      <span class="text-muted-foreground">Pertinence</span>
+      <span class="font-semibold text-primary">{{ scorePct() }}%</span>
+    </div>
+    <div
+      class="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+      role="progressbar"
+      [attr.aria-valuenow]="scorePct()"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      [attr.aria-label]="'Score de pertinence ' + scorePct() + '%'"
+    >
+      <div class="h-full rounded-full bg-gradient-primary" [style.width.%]="scorePct()"></div>
+    </div>
+  </div>
+
+  <button
+    type="button"
+    class="mt-3 flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+  >
+    Commencer
+    <lucide-icon
+      name="arrow-right"
+      class="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+      aria-hidden="true"
+    ></lucide-icon>
+  </button>
+</div>

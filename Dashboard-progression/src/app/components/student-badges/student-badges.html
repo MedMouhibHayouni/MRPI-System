@@ -1,0 +1,13 @@
+@if (badges().length) {
+  <div class="flex flex-wrap items-center gap-2" role="list" aria-label="Badges obtenus">
+    @for (b of badges(); track b.id) {
+      <span
+        role="listitem"
+        class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur"
+      >
+        <lucide-icon [name]="b.icon" class="h-3.5 w-3.5" aria-hidden="true"></lucide-icon>
+        {{ b.label }}
+      </span>
+    }
+  </div>
+}

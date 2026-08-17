@@ -1,0 +1,27 @@
+<div class="bg-gradient-card shadow-elegant rounded-2xl border p-5">
+  <div class="pb-3">
+    <h2 class="flex items-center gap-2 font-display text-lg font-semibold">
+      <lucide-icon name="rocket" class="h-5 w-5 text-primary" aria-hidden="true"></lucide-icon>
+      Missions de la semaine
+    </h2>
+    <div class="mt-2 flex items-center justify-between gap-3 text-sm">
+      <span class="text-muted-foreground">{{ done() }} / {{ missions().length }} terminées</span>
+      <span class="font-semibold text-primary">{{ pct() }}%</span>
+    </div>
+    <div
+      class="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted"
+      role="progressbar"
+      [attr.aria-valuenow]="pct()"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      [attr.aria-label]="'Progression missions ' + pct() + '%'"
+    >
+      <div class="h-full rounded-full bg-gradient-primary transition-smooth" [style.width.%]="pct()"></div>
+    </div>
+  </div>
+  <ul class="space-y-2">
+    @for (mission of missions(); track mission.id) {
+      <app-weekly-mission-item [mission]="mission" />
+    }
+  </ul>
+</div>
